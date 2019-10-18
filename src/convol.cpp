@@ -80,8 +80,10 @@ ARR gauss_filter(const ARR & wave, const ARR & flux, const ARR & arrpar){
         ARR arrwidth;
         for( size_t d = 0; d < arredge.size()-1; ++d) 
             arrwidth.push_back(arredge[d+1]-arredge[d]);
-        for ( size_t j =0; j < wave.size(); ++j)
+        for ( size_t j =0; j < wave.size(); ++j){
+            // std::cout << arrwidth[j] << std::endl;
             area += arrwidth[j] * gauss_profile[j];
+        }
         for ( auto & val : gauss_profile)
             val /= area;
         for ( size_t j = 0; j < wave.size(); ++j)
