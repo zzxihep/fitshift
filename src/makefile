@@ -1,5 +1,5 @@
-FLAG = -fPIC -std=c++11
-HP = -I /usr/include/python2.7
+FLAG = -fPIC -std=c++11 -O2
+HP = -I /usr/include/python3.7m
 SHARE = -shared
 
 objects = convol.o convol_wrap.o
