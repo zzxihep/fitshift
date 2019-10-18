@@ -29,6 +29,7 @@ def main():
     newflux = convol.gauss_filter(wave, scaleflux, sigmapar)
 
     plt.plot(wave*scalewave, newflux, color='red')
+    # plt.show()
 
     plt.figure()
     testflux = np.zeros(wave.shape)

@@ -1,4 +1,4 @@
-FLAG = -fPIC -std=c++11 -O2
+FLAG = -fPIC -std=c++11
 HP = -I /usr/include/python2.7
 SHARE = -shared
 
