@@ -3,7 +3,7 @@
 import math
 import numpy as np
 from astropy.io import fits
-import lmfit
+from lmfit import minimize, Parameters
 import matplotlib.pyplot as plt
 import rebin
 import convol
@@ -36,11 +36,18 @@ def read_sdss(fname):
     data = fit[1].data
     wave = (np.power(10, data['loglam'])).astype(np.float64)
     flux = (data['flux'] * 1.0e-17).astype(np.float64)
-    err = (data['ivar'] * 1.0e-17).astype(np.float64)
+    err = (flux*data['ivar']).astype(np.float64)
+    # std = (data['PropErr'] * 1.0e-17).astype(np.float64)
+    ax1 = plt.subplot(211)
+    ax2 = plt.subplot(212)
+    # ax3 = plt.subplot(313)
+    ax1.plot(wave, flux)
+    ax2.plot(wave, err)
+    plt.show()
     return wave, flux, err
 
 
-class model:
+class Model:
     def __init__(self, tmpname):
         wave, flux, err = read_template(tmpname)
         self.wave = wave
@@ -58,23 +65,51 @@ class model:
 
     def get_scale(self, wave, par):
         tmpwave = self.trans_wave(wave)
-        return convol.poly(tmpwave, par)
+        return np.array(convol.poly(tmpwave, par))
 
     def convol_spectrum(self, wave, par):
-        tmpwave = self.trans_wave(wave)
-        return convol.gauss_filter(tmpwave, self.flux, par)
+        # tmpwave = self.trans_wave(wave)
+        return np.array(convol.gauss_filter(wave, self.flux, par))
 
     def get_wave(self, parwave):
-        return convol.map_wave(self.wave, parwave)
+        # print(parwave)
+        return np.array(convol.map_wave(self.wave, parwave))
 
-    def get_spectrum(self, wave, shift1, sigma1, scale0, scale1, scale2, scale3, scale4, scale5):
-        new_wave = self.get_wave([0, shift1])
-        new_flux = self.convol_spectrum(new_wave, [0, sigma1])
-        par_scale = [scale0, scale1, scale2, scale3, scale4, scale5]
-        scale = self.get_scale(new_wave, par_scale)
+    def get_spectrum(self, wave, arrshift, arrsigma, arrscale):
+        # print(shift1)
+        new_wave = self.get_wave(arrshift)
+        new_flux = self.convol_spectrum(new_wave, arrsigma)
+        # print(len(new_flux))
+        # print(new_flux.shape)
+        scale = self.get_scale(new_wave, arrscale)
+        # print(len(scale))
+        # print(scale.shape)
         flux_aftscale = new_flux * scale
-        outflux = rebin.rebin(new_wave, flux_aftscale, wave)
+        outflux = np.array(rebin.rebin(new_wave, flux_aftscale, wave))
         return outflux
+
+    
+def get_residual(tmpname):
+    template = Model(tmpname)
+    def get_spec_model(pars, x):
+        shift0 = pars['shift0'].value
+        shift1 = pars['shift1'].value
+        sigma1 = pars['sigma'].value
+        scale0 = pars['scale0'].value
+        scale1 = pars['scale1'].value
+        scale2 = pars['scale2'].value
+        scale3 = pars['scale3'].value
+        scale4 = pars['scale4'].value
+        # scale5 = pars['scale5'].value
+        shift = [shift0, shift1]
+        sigma = [0.0, sigma1]
+        scale = [scale0, scale1, scale2, scale3, scale4]
+        spec_mod = template.get_spectrum(x, shift, sigma, scale)
+        return spec_mod
+    def residual(pars, x, data=None, eps=None):
+        spec_mod = get_spec_model(pars, x)
+        return (data - spec_mod) / eps
+    return residual, get_spec_model
 
 
 def main():
@@ -88,8 +123,43 @@ def main():
     ax1 = plt.subplot(211)
     ax2 = plt.subplot(212)
     ax1.plot(wt, ft)
-    ax2.plot(wt, newfluxo)
+    # ax2.plot(wo, fo)
+    ax2.errorbar(wo, fo, yerr=eo)
+    tempalte = Model('data/F5_-1.0_Dwarf.fits')
+    flux_fromtemp = tempalte.get_spectrum(wo, [0], [0, 1.0e-4], [1., 3.0e-1, -2.0e-1])
+    print('template.unit')
+    print(tempalte.unit)
+    flux_fromtemp = flux_fromtemp * tempalte.unit
+    ax1.plot(wo, flux_fromtemp)
     plt.show()
+    residual, get_spec = get_residual('data/F5_-1.0_Dwarf.fits')
+    params = Parameters()
+    params.add('shift0', value=0.0)
+    params.add('shift1', value=0.0)
+    params.add('sigma', value=1.0e-4)
+    params.add('scale0', value=1)
+    params.add('scale1', value=0.)
+    params.add('scale2', value=0.)
+    params.add('scale3', value=0.)
+    params.add('scale4', value=0.)
+    # params.add('scale5', value=0.)
+
+    arg = np.where((wo>3660) & (wo<10170))
+    new_wo = wo[arg]
+    new_fo = fo[arg]
+    new_eo = eo[arg]
+    unit = 10**math.floor(math.log10(np.median(new_fo)))
+    new_fo = new_fo / unit
+    new_eo = new_eo / unit
+    print(unit)
+
+    # out = minimize(residual, params, args=(new_wo, new_fo, new_eo))
+    # out_parms = out.params
+    # print(out_parms)
+    # spec_fit = get_spec(out_parms, new_wo)
+    # plt.errorbar(new_wo, new_fo, yerr=new_eo)
+    # plt.plot(new_wo, spec_fit)
+    # plt.show()
 
 
 if __name__ == "__main__":
