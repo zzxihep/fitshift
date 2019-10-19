@@ -39,6 +39,23 @@ def read_sdss(fname):
     return wave, flux, err
 
 
+class model:
+    def __init__(self, tmpname):
+        wave, flux, err = read_template(tmpname)
+        self.wave = wave
+        self.flux = flux
+        self.err = err
+
+    def get_spectrum(wave, par):
+        pass
+
+    def get_wave(parwave):
+        return convol.map_wave(self.wave, parwave)
+
+    def get_flux(wave, parflux):
+        return convol.gauss_filter(wave, self.flux, parflux)
+
+
 def main():
     tmpname = 'data/F5_-1.0_Dwarf.fits'
     ftargetname = 'data/spec-4961-55719-0378.fits'
