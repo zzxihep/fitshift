@@ -36,14 +36,12 @@ def read_sdss(fname):
     data = fit[1].data
     wave = (np.power(10, data['loglam'])).astype(np.float64)
     flux = (data['flux'] * 1.0e-17).astype(np.float64)
-    err = (flux*data['ivar']).astype(np.float64)
-    # std = (data['PropErr'] * 1.0e-17).astype(np.float64)
-    ax1 = plt.subplot(211)
-    ax2 = plt.subplot(212)
-    # ax3 = plt.subplot(313)
-    ax1.plot(wave, flux)
-    ax2.plot(wave, err)
-    plt.show()
+    err = (1/data['ivar'] * 1.0e-17).astype(np.float64)
+    # ax1 = plt.subplot(211)
+    # ax2 = plt.subplot(212, sharex=ax1)
+    # ax1.plot(wave, flux)
+    # ax2.plot(wave, err)
+    # plt.show()
     return wave, flux, err
 
 
@@ -100,10 +98,13 @@ def get_residual(tmpname):
         scale2 = pars['scale2'].value
         scale3 = pars['scale3'].value
         scale4 = pars['scale4'].value
-        # scale5 = pars['scale5'].value
+        scale5 = pars['scale5'].value
         shift = [shift0, shift1]
         sigma = [0.0, sigma1]
-        scale = [scale0, scale1, scale2, scale3, scale4]
+        scale = [scale0, scale1, scale2, scale3, scale4, scale5]
+        print(shift)
+        print(sigma)
+        print(scale)
         spec_mod = template.get_spectrum(x, shift, sigma, scale)
         return spec_mod
     def residual(pars, x, data=None, eps=None):
@@ -134,15 +135,15 @@ def main():
     plt.show()
     residual, get_spec = get_residual('data/F5_-1.0_Dwarf.fits')
     params = Parameters()
-    params.add('shift0', value=0.0)
-    params.add('shift1', value=0.0)
-    params.add('sigma', value=1.0e-4)
-    params.add('scale0', value=1)
-    params.add('scale1', value=0.)
-    params.add('scale2', value=0.)
-    params.add('scale3', value=0.)
-    params.add('scale4', value=0.)
-    # params.add('scale5', value=0.)
+    params.add('shift0', value=1.1568794774016442)
+    params.add('shift1', value=-0.0007594668175056121)
+    params.add('sigma', value=0.00016558594418925043, min=1.0e-8)
+    params.add('scale0', value=4.543402040007523)
+    params.add('scale1', value=-0.20454792267985503)
+    params.add('scale2', value=-0.2391637452260473)
+    params.add('scale3', value=0.2190777818642178)
+    params.add('scale4', value=-0.09965310075298969)
+    params.add('scale5', value=-0.1255319879292037)
 
     arg = np.where((wo>3660) & (wo<10170))
     new_wo = wo[arg]
@@ -150,16 +151,17 @@ def main():
     new_eo = eo[arg]
     unit = 10**math.floor(math.log10(np.median(new_fo)))
     new_fo = new_fo / unit
-    new_eo = new_eo / unit
+    new_eo = new_eo / unit * 2.0
     print(unit)
 
-    # out = minimize(residual, params, args=(new_wo, new_fo, new_eo))
-    # out_parms = out.params
-    # print(out_parms)
-    # spec_fit = get_spec(out_parms, new_wo)
+    out = minimize(residual, params, args=(new_wo, new_fo, new_eo))
+    out_parms = out.params
+    print(out_parms)
+    spec_fit = get_spec(out_parms, new_wo)
     # plt.errorbar(new_wo, new_fo, yerr=new_eo)
-    # plt.plot(new_wo, spec_fit)
-    # plt.show()
+    plt.plot(new_wo, new_fo)
+    plt.plot(new_wo, spec_fit)
+    plt.show()
 
 
 if __name__ == "__main__":
