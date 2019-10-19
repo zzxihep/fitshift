@@ -1,5 +1,6 @@
 FLAG = -fPIC -std=c++11 -O2
 HP = -I /usr/include/python2.7
+CC = g++
 SHARE = -shared
 
 objects = convol.o convol_wrap.o
@@ -7,25 +8,25 @@ objects = convol.o convol_wrap.o
 default : _convol.so _rebin.so
 
 _convol.so : $(objects)
-	g++ -o _convol.so $(objects) $(SHARE)
+	$(CC) -o _convol.so $(objects) $(SHARE)
 
 convol.o : convol.cpp convol.h
-	g++ -c convol.cpp $(FLAG)
+	$(CC) -c convol.cpp $(FLAG)
 
 convol_wrap.o : convol_wrap.cxx
-	g++ -c convol_wrap.cxx $(FLAG) $(HP)
+	$(CC) -c convol_wrap.cxx $(FLAG) $(HP)
 
 convol_wrap.cxx : convol.i
 	swig -python -c++ convol.i
 
 _rebin.so : rebin.o rebin_wrap.o
-	g++ -o _rebin.so rebin.o rebin_wrap.o $(SHARE)
+	$(CC) -o _rebin.so rebin.o rebin_wrap.o $(SHARE)
 
 rebin.o : rebin.cpp
-	g++ -c rebin.cpp $(FLAG)
+	$(CC) -c rebin.cpp $(FLAG)
 
 rebin_wrap.o : rebin_wrap.cxx
-	g++ -c rebin_wrap.cxx $(FLAG) $(HP)
+	$(CC) -c rebin_wrap.cxx $(FLAG) $(HP)
 
 rebin_wrap.cxx : rebin.i
 	swig -python -c++ rebin.i

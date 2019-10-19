@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import math
 import numpy as np
 from astropy.io import fits
 import lmfit
@@ -45,15 +46,35 @@ class model:
         self.wave = wave
         self.flux = flux
         self.err = err
+        self.wshift = -(wave[0]+wave[-1])/2
+        self.wscale = 2/(wave[-1]-wave[0])
+        typicalflux = np.median(self.flux)
+        exponent = math.floor(math.log10(typicalflux))
+        self.unit = 10**exponent
+        self.flux = self.flux / self.unit
 
-    def get_spectrum(wave, par):
-        pass
+    def trans_wave(self, wave):
+        return (wave + self.wshift) * self.wscale
 
-    def get_wave(parwave):
+    def get_scale(self, wave, par):
+        tmpwave = self.trans_wave(wave)
+        return convol.poly(tmpwave, par)
+
+    def convol_spectrum(self, wave, par):
+        tmpwave = self.trans_wave(wave)
+        return convol.gauss_filter(tmpwave, self.flux, par)
+
+    def get_wave(self, parwave):
         return convol.map_wave(self.wave, parwave)
 
-    def get_flux(wave, parflux):
-        return convol.gauss_filter(wave, self.flux, parflux)
+    def get_spectrum(self, wave, shift1, sigma1, scale0, scale1, scale2, scale3, scale4, scale5):
+        new_wave = self.get_wave([0, shift1])
+        new_flux = self.convol_spectrum(new_wave, [0, sigma1])
+        par_scale = [scale0, scale1, scale2, scale3, scale4, scale5]
+        scale = self.get_scale(new_wave, par_scale)
+        flux_aftscale = new_flux * scale
+        outflux = rebin.rebin(new_wave, flux_aftscale, wave)
+        return outflux
 
 
 def main():
