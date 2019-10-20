@@ -87,8 +87,8 @@ class Model:
         return outflux
 
 
-def get_residual(tmpname):
-    template = Model(tmpname)
+def get_residual(model):
+    template = model
     def get_spec_model(pars, x):
         shift0 = pars['shift0'].value
         shift1 = pars['shift1'].value
@@ -102,9 +102,9 @@ def get_residual(tmpname):
         shift = [shift0, shift1]
         sigma = [0.0, sigma1]
         scale = [scale0, scale1, scale2, scale3, scale4, scale5]
-        print(shift)
-        print(sigma)
-        print(scale)
+        # print(shift)
+        # print(sigma)
+        # print(scale)
         spec_mod = template.get_spectrum(x, shift, sigma, scale)
         return spec_mod
     def residual(pars, x, data=None, eps=None):
@@ -137,7 +137,7 @@ def set_scale_pars(pars, order, valuelst=None):
         pars.add(scalename, value=_value[ind])
 
 
-def main():
+def test():
     tmpname = 'data/F5_-1.0_Dwarf.fits'
     ftargetname = 'data/spec-4961-55719-0378.fits'
     print('read template file')
@@ -157,7 +157,20 @@ def main():
     flux_fromtemp = flux_fromtemp * tempalte.unit
     ax1.plot(wo, flux_fromtemp)
     plt.show()
-    residual, get_spec = get_residual('data/F5_-1.0_Dwarf.fits')
+
+
+def show_err(ax, wave, spec, err):
+    low = spec-err
+    upp = spec+err
+    ax.fill_between(wave, low, upp, alpha=0.3, color='grey')
+
+
+from lmfit.printfuncs import report_fit
+import corner
+def main():
+    tmpname = 'data/F5_-1.0_Dwarf.fits'
+    model = Model(tmpname)
+    residual, get_spec = get_residual(model)
     params = Parameters()
     params.add('shift0', value=1.1568794774016442)
     params.add('shift1', value=-0.0007594668175056121)
@@ -166,29 +179,42 @@ def main():
                   0.2190777818642178, -0.09965310075298969, -0.1255319879292037]
     set_scale_pars(params, 5, valuelst=scalevalst)
 
+    ftargetname = 'data/spec-4961-55719-0378.fits'
+    wo, fo, eo = read_sdss(ftargetname)
     arg = np.where((wo>3660) & (wo<10170))
     new_wo = wo[arg]
     new_fo = fo[arg]
     new_eo = eo[arg]
     unit = 10**math.floor(math.log10(np.median(new_fo)))
     new_fo = new_fo / unit
-    new_eo = new_eo / unit * 2.0
+    new_eo = new_eo / unit
     print(unit)
 
-    out = minimize(residual, params, args=(new_wo, new_fo, new_eo))
+    out = minimize(residual, params, args=(new_wo, new_fo, new_eo), method='leastsq')
     out_parms = out.params
-    print(out_parms)
+    report_fit(out)
     spec_fit = get_spec(out_parms, new_wo)
     # plt.errorbar(new_wo, new_fo, yerr=new_eo)
     plt.plot(new_wo, new_fo)
     plt.plot(new_wo, spec_fit)
-    # plt.show()
-    mymodel = Model('data/F5_-1.0_Dwarf.fits')
+    show_err(plt.gca(), new_wo, new_fo, new_eo)
     scalepar = get_scale_pars(out_parms)
-    myscale = mymodel.get_scale(new_wo, scalepar)
+    myscale = model.get_scale(new_wo, scalepar)
     plt.figure()
     plt.plot(new_wo, myscale)
-    print(scalepar)
+    plt.show()
+
+    emcee_params = out.params.copy()
+    emcee_params.add('__lnsigma', value=np.log(0.1), min=np.log(0.01), max=np.log(2.0))
+    result_emcee = minimize(residual, params=emcee_params, args=(new_wo, new_fo, new_eo), method='emcee',
+                         nan_policy='omit', steps=1000, workers='mpi4py')
+    report_fit(result_emcee)
+    plt.plot(new_wo, new_fo)
+    ax = plt.plot(new_wo, spec_fit)
+    spec_emcee = get_spec(result_emcee.params, new_wo)
+    plt.plot(new_wo, spec_emcee)
+    emcee_corner = corner.corner(result_emcee.flatchain, labels=result_emcee.var_names,
+                             truths=list(result_emcee.params.valuesdict().values()))
     plt.show()
 
 
