@@ -12,7 +12,7 @@
 ARR legendre_poly( const ARR & arrx, const ARR & arrpar){
     ARR arrresult(arrx.size());
     for ( auto & val : arrresult) val = 0;
-    double * buff = new double[arrpar.size()]
+    double * buff = new double[arrpar.size()];
     double order = arrpar.size() - 1;
     for(size_t ind = 0; ind < arrx.size(); ++ind){
         gsl_sf_legendre_Pl_array(order, arrx[ind], buff);
@@ -106,7 +106,7 @@ ARR gauss_filter(const ARR & wave, const ARR & flux, const ARR & arrpar){
     for( auto & val : new_flux) val = 0;
     ARR arredge = get_edge(wave);
     ARR arrwidth;
-    for( size_t d = 0; d < arredge.size()-1; ++d) 
+    for( size_t d = 0; d < arredge.size()-1; ++d)
         arrwidth.push_back(arredge[d+1]-arredge[d]);
     for( size_t ind = 0; ind < wave.size(); ++ind){
         double sigma = arrsigma[ind];

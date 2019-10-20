@@ -1,5 +1,6 @@
 FLAG = -fPIC -std=c++11 -O2
 PY_CFLAGS  := $(shell python-config --includes)
+LIBMATH = -lgsl -lcblas
 CC = g++
 SHARE = -shared
 
@@ -11,7 +12,7 @@ _convol.so : $(objects)
 	$(CC) -o _convol.so $(objects) $(SHARE)
 
 convol.o : convol.cpp convol.h
-	$(CC) -c convol.cpp $(FLAG)
+	$(CC) -c convol.cpp $(FLAG) $(LIBMATH)
 
 convol_wrap.o : convol_wrap.cxx
 	$(CC) -c convol_wrap.cxx $(FLAG) $(PY_CFLAGS)
