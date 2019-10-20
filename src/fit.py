@@ -205,7 +205,7 @@ def main():
     plt.show()
 
     emcee_params = out.params.copy()
-    emcee_params.add('__lnsigma', value=np.log(0.1), min=np.log(0.01), max=np.log(2.0))
+    # emcee_params.add('__lnsigma', value=np.log(0.1), min=np.log(1.0e-20), max=np.log(1.0e20))
     result_emcee = minimize(residual, params=emcee_params, args=(new_wo, new_fo, new_eo), method='emcee',
                          nan_policy='omit', steps=1000, workers='mpi4py')
     report_fit(result_emcee)

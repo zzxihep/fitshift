@@ -3,13 +3,26 @@
 #include <utility>
 #include <vector>
 #include <iostream>
+#include <gsl/gsl_sf_legendre.h>
 #include "convol.h"
 
 #define ARR std::vector<double>
 
-ARR convol(const ARR & wave, const ARR & flux, const ARR & par){
-    ARR newflux(flux.size());
-    return newflux;
+// Please ensure -1 < arrx < 1
+ARR legendre_poly( const ARR & arrx, const ARR & arrpar){
+    ARR arrresult(arrx.size());
+    for ( auto & val : arrresult) val = 0;
+    double * buff = new double[arrpar.size()]
+    double order = arrpar.size() - 1;
+    for(size_t ind = 0; ind < arrx.size(); ++ind){
+        gsl_sf_legendre_Pl_array(order, arrx[ind], buff);
+        double temp = 0;
+        for ( size_t nn = 0; nn < arrpar.size(); ++nn)
+            temp += arrpar[nn] * buff[nn];
+        arrresult[ind] = temp;
+    }
+    delete [] buff;
+    return arrresult;
 }
 
 ARR poly(const ARR & arrx, const ARR & arrpar){
@@ -122,5 +135,12 @@ int main(){
     ARR result = gaussian(arrtest, 1, 0);
     for ( auto val : result)
         std::cout << val << std::endl;
+    size_t arrsize = 8;
+    double arrpoly[arrsize];
+    for ( size_t ind = 0; ind < arrsize; ++ind) arrpoly[ind] = 0;
+    gsl_sf_legendre_Pl_array(5, 0.5, arrpoly);
+    for(size_t ind = 0; ind < arrsize; ++ind)
+        std::cout << arrpoly[ind] << "  ";
+    std::cout << std::endl;
     return 0;
 }
