@@ -1,5 +1,5 @@
 FLAG = -fPIC -std=c++11 -O2
-HP = -I /usr/include/python2.7
+PY_CFLAGS  := $(shell python-config --includes)
 CC = g++
 SHARE = -shared
 
@@ -14,7 +14,7 @@ convol.o : convol.cpp convol.h
 	$(CC) -c convol.cpp $(FLAG)
 
 convol_wrap.o : convol_wrap.cxx
-	$(CC) -c convol_wrap.cxx $(FLAG) $(HP)
+	$(CC) -c convol_wrap.cxx $(FLAG) $(PY_CFLAGS)
 
 convol_wrap.cxx : convol.i
 	swig -python -c++ convol.i
@@ -26,7 +26,7 @@ rebin.o : rebin.cpp
 	$(CC) -c rebin.cpp $(FLAG)
 
 rebin_wrap.o : rebin_wrap.cxx
-	$(CC) -c rebin_wrap.cxx $(FLAG) $(HP)
+	$(CC) -c rebin_wrap.cxx $(FLAG) $(PY_CFLAGS)
 
 rebin_wrap.cxx : rebin.i
 	swig -python -c++ rebin.i
