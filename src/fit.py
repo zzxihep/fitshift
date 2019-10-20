@@ -86,7 +86,7 @@ class Model:
         outflux = np.array(rebin.rebin(new_wave, flux_aftscale, wave))
         return outflux
 
-    
+
 def get_residual(tmpname):
     template = Model(tmpname)
     def get_spec_model(pars, x):
@@ -111,6 +111,30 @@ def get_residual(tmpname):
         spec_mod = get_spec_model(pars, x)
         return (data - spec_mod) / eps
     return residual, get_spec_model
+
+
+def get_scale_pars(pars):
+    keywordlst = []
+    valuelst = []
+    for keyword in pars:
+        if 'scale' in keyword:
+            keywordlst.append(keyword)
+            valuelst.append(pars[keyword].value)
+    keywordlst = np.array(keywordlst)
+    valuelst = np.array(valuelst)
+    arg = np.argsort(keywordlst)
+    return valuelst[arg]
+
+
+def set_scale_pars(pars, order, valuelst=None):
+    if valuelst is None:
+        _value = np.zeros(order+1)
+        _value[0] = 1
+    else:
+        _value = valuelst
+    for ind in range(order+1):
+        scalename = 'scale'+str(ind)
+        pars.add(scalename, value=_value[ind])
 
 
 def main():
@@ -138,12 +162,9 @@ def main():
     params.add('shift0', value=1.1568794774016442)
     params.add('shift1', value=-0.0007594668175056121)
     params.add('sigma', value=0.00016558594418925043, min=1.0e-8)
-    params.add('scale0', value=4.543402040007523)
-    params.add('scale1', value=-0.20454792267985503)
-    params.add('scale2', value=-0.2391637452260473)
-    params.add('scale3', value=0.2190777818642178)
-    params.add('scale4', value=-0.09965310075298969)
-    params.add('scale5', value=-0.1255319879292037)
+    scalevalst = [4.543402040007523, -0.20454792267985503, -0.2391637452260473,
+                  0.2190777818642178, -0.09965310075298969, -0.1255319879292037]
+    set_scale_pars(params, 5, valuelst=scalevalst)
 
     arg = np.where((wo>3660) & (wo<10170))
     new_wo = wo[arg]
@@ -161,6 +182,13 @@ def main():
     # plt.errorbar(new_wo, new_fo, yerr=new_eo)
     plt.plot(new_wo, new_fo)
     plt.plot(new_wo, spec_fit)
+    # plt.show()
+    mymodel = Model('data/F5_-1.0_Dwarf.fits')
+    scalepar = get_scale_pars(out_parms)
+    myscale = mymodel.get_scale(new_wo, scalepar)
+    plt.figure()
+    plt.plot(new_wo, myscale)
+    print(scalepar)
     plt.show()
 
 

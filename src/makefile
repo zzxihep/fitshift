@@ -33,4 +33,4 @@ rebin_wrap.cxx : rebin.i
 
 clean :
 	rm _convol.so $(objects) convol_wrap.cxx convol.py \
-		_rebin.so rebin.o rebin_wrap.o rebin_wrap.cxx
+		_rebin.so rebin.o rebin_wrap.o rebin_wrap.cxx rebin.py
