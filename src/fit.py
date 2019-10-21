@@ -105,10 +105,10 @@ def get_residual(model):
     template = model
 
     def get_spec_model(pars, x):
-        shift0 = pars['shift0'].value
+        # shift0 = pars['shift0'].value
         shift1 = pars['shift1'].value
         sigma1 = pars['sigma'].value
-        shift = [shift0, shift1]
+        shift = [0.0, shift1]
         sigma = [0.0, sigma1]
         scale = get_scale_pars(pars=pars)
         # scale = [scale0, scale1, scale2, scale3, scale4, scale5]
@@ -182,12 +182,12 @@ def main():
     model = Model(tmpname)
     residual, get_spec = get_residual(model)
     params = Parameters()
-    params.add('shift0', value=1.1568794774016442)
+    # params.add('shift0', value=1.1568794774016442)
     params.add('shift1', value=-0.0007594668175056121)
     params.add('sigma', value=0.00016558594418925043, min=1.0e-8)
     scalevalst = [4.543402040007523, -0.20454792267985503, -0.2391637452260473,
-                  0.2190777818642178, -0.09965310075298969, -0.1255319879292037]
-    set_scale_pars(params, 5, valuelst=scalevalst)
+                  0.2190777818642178, -0.09965310075298969]
+    set_scale_pars(params, 4, valuelst=scalevalst)
 
     ftargetname = 'data/spec-4961-55719-0378.fits'
     wo, fo, eo = read_sdss(ftargetname)
