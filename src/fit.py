@@ -5,6 +5,8 @@ import numpy as np
 from astropy.io import fits
 from lmfit import minimize, Parameters
 import matplotlib.pyplot as plt
+from lmfit.printfuncs import report_fit
+import corner
 import rebin
 import convol
 
@@ -52,11 +54,15 @@ class Model:
         self.flux = flux
         self.err = err
         self.wshift = -(wave[0]+wave[-1])/2
-        self.wscale = 2/(wave[-1]-wave[0])
+        self.wscale = 1.98/(wave[-1]-wave[0])
         typicalflux = np.median(self.flux)
         exponent = math.floor(math.log10(typicalflux))
         self.unit = 10**exponent
         self.flux = self.flux / self.unit
+
+    def reset_wave_zoom(self, wave):
+        self.wshift = -(wave[0]+wave[-1])/2
+        self.wscale = 1.99/(wave[-1]-wave[0])
 
     def trans_wave(self, wave):
         return (wave + self.wshift) * self.wscale
@@ -64,6 +70,13 @@ class Model:
     def get_scale(self, wave, par):
         tmpwave = self.trans_wave(wave)
         return np.array(convol.poly(tmpwave, par))
+
+    def get_legendre_scale(self, wave, par):
+        tmpwave = self.trans_wave(wave)
+        # print('tmpwave range:')
+        # print(tmpwave[0])
+        # print(tmpwave[-1])
+        return np.array(convol.legendre_poly(tmpwave, par))
 
     def convol_spectrum(self, wave, par):
         # tmpwave = self.trans_wave(wave)
@@ -79,34 +92,32 @@ class Model:
         new_flux = self.convol_spectrum(new_wave, arrsigma)
         # print(len(new_flux))
         # print(new_flux.shape)
-        scale = self.get_scale(new_wave, arrscale)
+        # scale = self.get_scale(new_wave, arrscale)
+        scale = self.get_legendre_scale(wave, arrscale)
         # print(len(scale))
         # print(scale.shape)
-        flux_aftscale = new_flux * scale
-        outflux = np.array(rebin.rebin(new_wave, flux_aftscale, wave))
-        return outflux
+        flux_rebin = np.array(rebin.rebin(new_wave, new_flux, wave))
+        flux_aftscale = flux_rebin * scale
+        return flux_aftscale
 
 
 def get_residual(model):
     template = model
+
     def get_spec_model(pars, x):
         shift0 = pars['shift0'].value
         shift1 = pars['shift1'].value
         sigma1 = pars['sigma'].value
-        scale0 = pars['scale0'].value
-        scale1 = pars['scale1'].value
-        scale2 = pars['scale2'].value
-        scale3 = pars['scale3'].value
-        scale4 = pars['scale4'].value
-        scale5 = pars['scale5'].value
         shift = [shift0, shift1]
         sigma = [0.0, sigma1]
-        scale = [scale0, scale1, scale2, scale3, scale4, scale5]
+        scale = get_scale_pars(pars=pars)
+        # scale = [scale0, scale1, scale2, scale3, scale4, scale5]
         # print(shift)
         # print(sigma)
         # print(scale)
         spec_mod = template.get_spectrum(x, shift, sigma, scale)
         return spec_mod
+
     def residual(pars, x, data=None, eps=None):
         spec_mod = get_spec_model(pars, x)
         return (data - spec_mod) / eps
@@ -144,14 +155,15 @@ def test():
     wt, ft, et = read_template(tmpname)
     print('read target file')
     wo, fo, eo = read_sdss(ftargetname)
-    newfluxo = rebin.rebin(wo, fo, wt)
+    # newfluxo = rebin.rebin(wo, fo, wt)
     ax1 = plt.subplot(211)
     ax2 = plt.subplot(212)
     ax1.plot(wt, ft)
     # ax2.plot(wo, fo)
     ax2.errorbar(wo, fo, yerr=eo)
     tempalte = Model('data/F5_-1.0_Dwarf.fits')
-    flux_fromtemp = tempalte.get_spectrum(wo, [0], [0, 1.0e-4], [1., 3.0e-1, -2.0e-1])
+    flux_fromtemp = tempalte.get_spectrum(wo, [0], [0, 1.0e-4],
+                                          [1., 3.0e-1, -2.0e-1])
     print('template.unit')
     print(tempalte.unit)
     flux_fromtemp = flux_fromtemp * tempalte.unit
@@ -165,8 +177,6 @@ def show_err(ax, wave, spec, err):
     ax.fill_between(wave, low, upp, alpha=0.3, color='grey')
 
 
-from lmfit.printfuncs import report_fit
-import corner
 def main():
     tmpname = 'data/F5_-1.0_Dwarf.fits'
     model = Model(tmpname)
@@ -181,16 +191,18 @@ def main():
 
     ftargetname = 'data/spec-4961-55719-0378.fits'
     wo, fo, eo = read_sdss(ftargetname)
-    arg = np.where((wo>3660) & (wo<10170))
+    arg = np.where((wo > 3660) & (wo < 10170))
     new_wo = wo[arg]
     new_fo = fo[arg]
     new_eo = eo[arg]
+    model.reset_wave_zoom(new_wo)
     unit = 10**math.floor(math.log10(np.median(new_fo)))
     new_fo = new_fo / unit
     new_eo = new_eo / unit
     print(unit)
 
-    out = minimize(residual, params, args=(new_wo, new_fo, new_eo), method='leastsq')
+    out = minimize(residual, params, args=(new_wo, new_fo, new_eo),
+                   method='leastsq')
     out_parms = out.params
     report_fit(out)
     spec_fit = get_spec(out_parms, new_wo)
@@ -205,16 +217,19 @@ def main():
     plt.show()
 
     emcee_params = out.params.copy()
-    # emcee_params.add('__lnsigma', value=np.log(0.1), min=np.log(1.0e-20), max=np.log(1.0e20))
-    result_emcee = minimize(residual, params=emcee_params, args=(new_wo, new_fo, new_eo), method='emcee',
-                         nan_policy='omit', steps=1000, workers='mpi4py')
+    # emcee_params.add('__lnsigma', value=np.log(0.1), min=np.log(1.0e-20),
+    #                  max=np.log(1.0e20))
+    result_emcee = minimize(residual, params=emcee_params,
+                            args=(new_wo, new_fo, new_eo), method='emcee',
+                            nan_policy='omit', steps=1000)# , workers='mpi4py')
     report_fit(result_emcee)
+    show_err(plt.gca(), new_wo, new_fo, new_eo)
     plt.plot(new_wo, new_fo)
-    ax = plt.plot(new_wo, spec_fit)
+    # plt.plot(new_wo, spec_fit)
     spec_emcee = get_spec(result_emcee.params, new_wo)
     plt.plot(new_wo, spec_emcee)
-    emcee_corner = corner.corner(result_emcee.flatchain, labels=result_emcee.var_names,
-                             truths=list(result_emcee.params.valuesdict().values()))
+    corner.corner(result_emcee.flatchain, labels=result_emcee.var_names,
+                  truths=list(result_emcee.params.valuesdict().values()))
     plt.show()
 
 
