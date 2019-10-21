@@ -86,7 +86,7 @@ class Model:
         # print(parwave)
         return np.array(convol.map_wave(self.wave, parwave))
 
-    def get_spectrum(self, wave, arrshift, arrsigma, arrscale):
+    def get_spectrum_pre(self, wave, arrshift, arrsigma, arrscale):
         # print(shift1)
         new_wave = self.get_wave(arrshift)
         new_flux = self.convol_spectrum(new_wave, arrsigma)
@@ -94,34 +94,25 @@ class Model:
         # print(new_flux.shape)
         # scale = self.get_scale(new_wave, arrscale)
         scale = self.get_legendre_scale(wave, arrscale)
-        # print(len(scale))
-        # print(scale.shape)
         flux_rebin = np.array(rebin.rebin(new_wave, new_flux, wave))
         flux_aftscale = flux_rebin * scale
         return flux_aftscale
 
-
-def get_residual(model):
-    template = model
-
-    def get_spec_model(pars, x):
-        # shift0 = pars['shift0'].value
+    def get_spectrum(self, pars, wave):
+        shift0 = pars['shift0'].value
         shift1 = pars['shift1'].value
         sigma1 = pars['sigma'].value
-        shift = [0.0, shift1]
-        sigma = [0.0, sigma1]
-        scale = get_scale_pars(pars=pars)
-        # scale = [scale0, scale1, scale2, scale3, scale4, scale5]
-        # print(shift)
-        # print(sigma)
-        # print(scale)
-        spec_mod = template.get_spectrum(x, shift, sigma, scale)
-        return spec_mod
+        parshift = [shift0, shift1]
+        parsigma = [0.0, sigma1]
+        parscale = get_scale_pars(pars=pars)
+        return self.get_spectrum_pre(wave, parshift, parsigma, parscale)
 
-    def residual(pars, x, data=None, eps=None):
-        spec_mod = get_spec_model(pars, x)
-        return (data - spec_mod) / eps
-    return residual, get_spec_model
+    def residual(self, pars, x, data, eps=None):
+        spec = self.get_spectrum(pars, x)
+        if eps is not None:
+            return (data - spec) / eps
+        else:
+            return data-spec
 
 
 def get_scale_pars(pars):
@@ -180,14 +171,15 @@ def show_err(ax, wave, spec, err):
 def main():
     tmpname = 'data/F5_-1.0_Dwarf.fits'
     model = Model(tmpname)
-    residual, get_spec = get_residual(model)
+    # residual, get_spec = get_residual(model)
+    residual = model.residual
     params = Parameters()
-    # params.add('shift0', value=1.1568794774016442)
+    params.add('shift0', value=1.1568794774016442)
     params.add('shift1', value=-0.0007594668175056121)
     params.add('sigma', value=0.00016558594418925043, min=1.0e-8)
     scalevalst = [4.543402040007523, -0.20454792267985503, -0.2391637452260473,
-                  0.2190777818642178, -0.09965310075298969]
-    set_scale_pars(params, 4, valuelst=scalevalst)
+                  0.2190777818642178, -0.09965310075298969, -0.1255319879292037]
+    set_scale_pars(params, 5, valuelst=scalevalst)
 
     ftargetname = 'data/spec-4961-55719-0378.fits'
     wo, fo, eo = read_sdss(ftargetname)
@@ -205,7 +197,7 @@ def main():
                    method='leastsq')
     out_parms = out.params
     report_fit(out)
-    spec_fit = get_spec(out_parms, new_wo)
+    spec_fit = model.get_spectrum(out_parms, new_wo)
     # plt.errorbar(new_wo, new_fo, yerr=new_eo)
     plt.plot(new_wo, new_fo)
     plt.plot(new_wo, spec_fit)
@@ -226,7 +218,7 @@ def main():
     show_err(plt.gca(), new_wo, new_fo, new_eo)
     plt.plot(new_wo, new_fo)
     # plt.plot(new_wo, spec_fit)
-    spec_emcee = get_spec(result_emcee.params, new_wo)
+    spec_emcee = model.get_spec(result_emcee.params, new_wo)
     plt.plot(new_wo, spec_emcee)
     corner.corner(result_emcee.flatchain, labels=result_emcee.var_names,
                   truths=list(result_emcee.params.valuesdict().values()))
