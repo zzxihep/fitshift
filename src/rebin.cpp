@@ -1,7 +1,10 @@
+#include<cmath>
 #include<vector>
 #include<numeric>
 #include<iostream>
 #include "rebin.h"
+// #define NDEBUG
+#include <assert.h>
 
 #define DARR std::vector<double>
 
@@ -47,21 +50,64 @@ std::vector<wtf> ssort(const std::vector<wtf> & arr1, const std::vector<wtf> & a
     return result;
 }
 
-
-DARR rebin(const DARR & wave, const DARR & flux, const DARR & new_wave){
+std::vector<wtf> merge_edge(const DARR & wave, const DARR & flux, const DARR & new_wave){
     auto edge1 = get_edge(wave);
     auto edge2 = get_edge(new_wave);
     std::vector<wtf> group1(edge1.size());
     std::vector<wtf> group2(edge2.size());
     for (size_t ind = 0; ind < wave.size(); ++ind)
-        group1[ind] = {0, edge1[ind], flux[ind]};
+        group1[ind] = {0, edge1[ind], flux[ind]}; // 0 indicates old wave edge
     group1.back() = {0, edge1.back(), 0.0}; // the last edge flux should be 0
     for ( size_t ind = 0; ind < edge2.size(); ++ind)
-        group2[ind] = {1, edge2[ind], 0.0};
+        group2[ind] = {1, edge2[ind], 0.0}; //1 indicates new wave edge
     auto sorted_data = ssort(group1, group2);
     for ( size_t ind = 1; ind < sorted_data.size(); ++ind)
         if ( sorted_data[ind].type == 1)
             sorted_data[ind].flux = sorted_data[ind-1].flux;
+    return sorted_data;
+}
+
+// don't worry about the efficiency, don't make things complex
+DARR rebin_err(const DARR & wave, const DARR & err, const DARR & new_wave){
+    DARR new_err;
+    auto sorted_data = merge_edge(wave, err, new_wave);
+    typedef decltype(sorted_data.begin()) ITR;
+    std::vector<std::pair<ITR, ITR>> blocks;
+    for ( auto itr = sorted_data.begin(); itr != sorted_data.end(); ++itr)
+        if ( itr->type == 0) blocks.push_back({itr, itr});
+    assert(wave.size()+1 == blocks.size());
+    for ( auto btr = blocks.begin(); btr != blocks.end()-1; ++btr)
+        btr->second = (btr+1)->first;
+    blocks.pop_back();
+    for( auto & block : blocks){
+        auto sa = block.second->wave - block.first->wave;
+        auto err = block.first->flux;
+        for( auto bitr = block.first; bitr != block.second; ++bitr){
+            double si = (bitr+1)->wave - bitr->wave;
+            bitr->flux = si * sa * err * err;
+        }
+    }
+    blocks.clear();
+    for ( auto itr = sorted_data.begin(); itr != sorted_data.end(); ++itr)
+        if ( itr->type == 1) blocks.push_back({itr, itr});
+    for ( auto btr = blocks.begin(); btr != blocks.end()-1; ++btr)
+        btr->second = (btr+1)->first;
+    blocks.pop_back();
+    for( auto & block : blocks){
+        auto sb = block.second->wave - block.first->wave;
+        double err = 0;
+        for( auto bitr = block.first; bitr != block.second; ++bitr)
+            err += bitr->flux;
+        err /= sb*sb;
+        err = sqrt(err);
+        new_err.push_back(err);
+    }
+    assert(new_err.size() == new_wave.size());
+    return new_err;
+}
+
+DARR rebin(const DARR & wave, const DARR & flux, const DARR & new_wave){
+    auto sorted_data = merge_edge(wave, flux, new_wave);
     DARR new_flux;
     double tmpflux = 0, w1 = 0, w2 = 0;
     size_t ind = 0;
@@ -93,5 +139,6 @@ int main(){
     std::cout << std::endl;
     DARR wave2 = {2, 3, 5, 6};
     rebin(wave, wave, wave2);
+    rebin_err(wave, wave, wave2);
     return 0;
 }
