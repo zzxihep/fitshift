@@ -6,7 +6,6 @@
 #include <gsl/gsl_sf_legendre.h>
 #include "convol.h"
 
-#define ARR std::vector<double>
 
 // Please ensure -1 < arrx < 1
 ARR legendre_poly( const ARR & arrx, const ARR & arrpar){
@@ -81,7 +80,6 @@ std::pair<int, int> gaussian2(const ARR & arrx, double sigma, double x0, ARR & r
     }
     return std::make_pair(indl, indr);
 }
-
 
 ARR get_edge(const ARR & wave){
     ARR interval(wave.size());

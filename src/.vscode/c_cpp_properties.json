@@ -3,6 +3,11 @@
         {
             "name": "Linux",
             "includePath": [
+                "/usr/include",
+                "/usr/include/linux",
+                "/usr/include/c++/9.2.0/tr1",
+                "/usr/local/include",
+                "/usr/include/c++/9.2.0",
                 "${workspaceFolder}/**"
             ],
             "defines": [],
@@ -14,7 +19,7 @@
                 "path": [
                     "/usr/include",
                     "/usr/local/include",
-                    "./include/c++/9.2.0"
+                    "/usr/include/c++/9.2.0"
                 ]
             }
         }

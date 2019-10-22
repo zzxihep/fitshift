@@ -1,5 +1,5 @@
-#ifndef __CONVOL_H
-#define __CONVOL_H
+#ifndef __CONVOL_H__
+#define __CONVOL_H__
 
 #include <vector>
 #define ARR std::vector<double>
