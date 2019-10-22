@@ -3,11 +3,10 @@
 #include<numeric>
 #include<iostream>
 #include "rebin.h"
-// #define NDEBUG
+#define NDEBUG
 #include <assert.h>
 
 #define DARR std::vector<double>
-
 
 DARR get_edge(const DARR & wave){
     DARR interval(wave.size());
@@ -31,7 +30,6 @@ struct wtf {
         return wave < b.wave;
     }
 };
-
 
 std::vector<wtf> ssort(const std::vector<wtf> & arr1, const std::vector<wtf> & arr2){
     std::vector<wtf> result(arr1.size()+arr2.size());
