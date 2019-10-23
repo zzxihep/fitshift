@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
+# import os
 import math
 import numpy as np
 from astropy.io import fits
+from astropy.constants import c
 import matplotlib.pyplot as plt
 from lmfit import minimize, Parameters
 from lmfit.printfuncs import report_fit
@@ -10,14 +12,13 @@ import corner
 import rebin
 import convol
 import specio
+import func
 
-
-def get_unit(flux):
-    return 10**math.floor(math.log10(np.median(flux)))
 
 
 class Model:
     def __init__(self, tmpname):
+        self.filename = tmpname
         wave, flux, err = specio.read_template(tmpname)
         self.wave = wave
         self.flux = flux
@@ -116,55 +117,60 @@ def set_pars(pars, prefix, order, valuelst=None, minlst=None, maxlst=None):
         pars.add(keyword, value=valuelst[ind], min=minlst[ind], max=maxlst[ind])
 
 
-def show_err(ax, wave, spec, err):
-    low = spec-err
-    upp = spec+err
-    ax.fill_between(wave, low, upp, alpha=0.3, color='grey')
+def fit(template, wave, flux, err, params=None, show=False, print=False):
+    if params is None:
+        params = Parameters()
+        # set_pars(params, 'shift', [0, 1], valuelst=[1.1568794774016442, -0.0007594668175056121])
+        set_pars(params, 'shift', [1], valuelst=[-2.5688e-04])
+        set_pars(params, 'sigma', [1], valuelst=[0.00016558594418925043], minlst=[1.0e-8])
+        scalevalst = [4.543402040007523, -0.20454792267985503, -0.2391637452260473,
+                    0.2190777818642178, -0.09965310075298969, -0.1255319879292037]
+        set_pars(params, 'scale', 5, valuelst=scalevalst)
+    template.reset_wave_zoom(wave)
+    out = minimize(template.residual, params, args=(wave, flux, err),
+                   method='leastsq')
+    if print:
+        report_fit(out)
+    if show:
+        spec_fit = template.get_spectrum(out.params, wave)
+        lower = flux - err
+        upper = flux + err
+        plt.figure()
+        plt.fill_between(wave, lower, upper, alpha=0.3, color='grey')
+        plt.plot(wave, flux)
+        plt.plot(wave, spec_fit)
+        plt.show()
+    return out
 
-from astropy.constants import c
 
 def main():
     tmpname = 'data/F5_-1.0_Dwarf.fits'
     model = Model(tmpname)
-    # residual, get_spec = get_residual(model)
-    residual = model.residual
-    params = Parameters()
-    # set_pars(params, 'shift', [0, 1], valuelst=[1.1568794774016442, -0.0007594668175056121])
-    set_pars(params, 'shift', [1], valuelst=[-2.5688e-04])
-    set_pars(params, 'sigma', [1], valuelst=[0.00016558594418925043], minlst=[1.0e-8])
-    scalevalst = [4.543402040007523, -0.20454792267985503, -0.2391637452260473,
-                  0.2190777818642178, -0.09965310075298969, -0.1255319879292037]
-    set_pars(params, 'scale', 5, valuelst=scalevalst)
 
     ftargetname = 'data/spec-4961-55719-0378.fits'
     targetname = '/home/zzx/workspace/data/xiamen/P200-Hale_spec/blue/reduce_second/specdir/fawftbblue0070.fits'
-    # new_wo, new_fo, new_eo = specio.read_sdss(ftargetname, lw=3660, rw=10170)
-    new_wo, new_fo, new_eo = specio.read_iraf(targetname)
-    model.reset_wave_zoom(new_wo)
-    unit = get_unit(new_fo)
+    new_wo, new_fo, new_eo = specio.read_sdss(ftargetname, lw=3660, rw=10170)
+    unit = func.get_unit(new_fo)
     new_fo = new_fo / unit
     new_eo = new_eo / unit
-    print(unit)
+    # new_wo, new_fo, new_eo = specio.read_iraf(targetname)
+    result = fit(model, new_wo, new_fo, new_eo, show=True)
 
-    out = minimize(residual, params, args=(new_wo, new_fo, new_eo),
-                   method='leastsq')
-    out_parms = out.params
-    report_fit(out)
+    residual = model.residual
+
+    out_parms = result.params
     spec_fit = model.get_spectrum(out_parms, new_wo)
-    # plt.errorbar(new_wo, new_fo, yerr=new_eo)
-    plt.plot(new_wo, new_fo)
-    plt.plot(new_wo, spec_fit)
-    show_err(plt.gca(), new_wo, new_fo, new_eo)
     scalepar, parsigma, parshift = get_pars(out_parms)
     print(parshift[1])
     velocity = str(parshift[1]*c.to('km/s'))
     print('shift = '+velocity)
     myscale = model.get_scale(new_wo, scalepar)
+
     plt.figure()
     plt.plot(new_wo, myscale)
     plt.show()
 
-    emcee_params = out.params.copy()
+    emcee_params = result.params.copy()
     # emcee_params.add('__lnsigma', value=np.log(0.1), min=np.log(1.0e-20),
     #                  max=np.log(1.0e20))
     result_emcee = minimize(residual, params=emcee_params,

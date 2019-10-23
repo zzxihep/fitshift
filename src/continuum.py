@@ -3,7 +3,7 @@ from lmfit import report_fit
 import numpy as np
 import matplotlib.pyplot as plt
 import convol
-import fit
+import template
 import specio
 
 
@@ -25,7 +25,7 @@ def get_scale(wave, pars):
 
 def continuum(wave, flux, err=None):
     pars = Parameters()
-    fit.set_pars(pars, 'scale', 12, [0.0]*13)
+    template.set_pars(pars, 'scale', 12, [0.0]*13)
     result = minimize(residual, pars, args=(wave, flux, err))
     scale = get_scale(wave, result.params)
     tmpuniform = flux / scale
