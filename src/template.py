@@ -143,6 +143,17 @@ def fit(template, wave, flux, err, params=None, show=False, print=False):
     return out
 
 
+def fit2(template, spec1, spec2, mask=None, params=None, show=False, print=False):
+    """
+    Some spectrum are observed by multichannel instrument. So there are multiple
+    spectral files corresponding to one observation. This function try to fit
+    the two part of the spectrum simultaneously using 2 scale curves, 1 shift,
+    2 sigma pars. the mask window format should be like this
+    [[l1, r1], [l2, r2], ...]
+    """
+    pass
+
+
 def main():
     tmpname = 'data/F5_-1.0_Dwarf.fits'
     model = Model(tmpname)

@@ -1,5 +1,36 @@
 import numpy as np
 from astropy.io import fits
+import func
+
+
+class Spectrum:
+    def __init__(self, wave, flux, err=None, filename=None):
+        self.wave = wave
+        self.flux = flux
+        self.err = err
+        self.unit = func.get_unit(self.flux)
+        self.filename = filename
+
+    def __init__(self, fn):
+        self.filename = fn
+        self.wave, self.fux, self.err = read_iraf(fn)
+        self.unit = func.get_unit(self.flux)
+
+    def flux_unit(self):
+        return self.flux / self.unit
+
+    def err_unit(self):
+        return self.err / self.unit
+
+    def mask(maskwindow):
+        """
+        return a new spectrum object after masking
+        """
+        arg = func.mask(self.wave)
+        new_wave = self.wave[arg]
+        new_flux = self.flux[arg]
+        new_err = self.err[arg]
+        return Spectrum(new_wave, new_flux, new_err, self.filename)
 
 
 def read_sdss(fname, lw=-float('inf'), rw=float('inf')):

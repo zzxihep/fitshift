@@ -19,3 +19,14 @@ def select(wave, flux, err=None, lw=-inf, uw=inf):
         new_err = np.array(err)[arg]
         return new_wave, new_flux, new_err
     return new_wave, new_flux
+
+
+def mask(wave, maskwindow):
+    """
+    return arg of wave
+    """
+    win = maskwindow[0]
+    selected = (wave < win[0]) | (wave > win[1])
+    for win in maskwindow[1:]:
+        selected = selected & ((wave < win[0]) | (wave > win[1]))
+    return np.where(selected)
