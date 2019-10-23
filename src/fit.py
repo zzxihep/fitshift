@@ -3,8 +3,8 @@
 import math
 import numpy as np
 from astropy.io import fits
-from lmfit import minimize, Parameters
 import matplotlib.pyplot as plt
+from lmfit import minimize, Parameters
 from lmfit.printfuncs import report_fit
 import corner
 import rebin
@@ -73,6 +73,9 @@ class Model:
 
 
 def get_pars(pars):
+    """
+    return parscale, parsigma, parshift
+    """
     pardata = {'scale':[], 'sigma':[], 'shift':[]}
     for key in pars:
         flag = key[:5]
@@ -118,6 +121,7 @@ def show_err(ax, wave, spec, err):
     upp = spec+err
     ax.fill_between(wave, low, upp, alpha=0.3, color='grey')
 
+from astropy.constants import c
 
 def main():
     tmpname = 'data/F5_-1.0_Dwarf.fits'
@@ -125,14 +129,17 @@ def main():
     # residual, get_spec = get_residual(model)
     residual = model.residual
     params = Parameters()
-    set_pars(params, 'shift', [0, 1], valuelst=[1.1568794774016442, -0.0007594668175056121])
+    # set_pars(params, 'shift', [0, 1], valuelst=[1.1568794774016442, -0.0007594668175056121])
+    set_pars(params, 'shift', [1], valuelst=[-2.5688e-04])
     set_pars(params, 'sigma', [1], valuelst=[0.00016558594418925043], minlst=[1.0e-8])
     scalevalst = [4.543402040007523, -0.20454792267985503, -0.2391637452260473,
                   0.2190777818642178, -0.09965310075298969, -0.1255319879292037]
     set_pars(params, 'scale', 5, valuelst=scalevalst)
 
     ftargetname = 'data/spec-4961-55719-0378.fits'
-    new_wo, new_fo, new_eo = specio.read_sdss(ftargetname, lw=3660, rw=10170)
+    targetname = '/home/zzx/workspace/data/xiamen/P200-Hale_spec/blue/reduce_second/specdir/fawftbblue0070.fits'
+    # new_wo, new_fo, new_eo = specio.read_sdss(ftargetname, lw=3660, rw=10170)
+    new_wo, new_fo, new_eo = specio.read_iraf(targetname)
     model.reset_wave_zoom(new_wo)
     unit = get_unit(new_fo)
     new_fo = new_fo / unit
@@ -149,6 +156,9 @@ def main():
     plt.plot(new_wo, spec_fit)
     show_err(plt.gca(), new_wo, new_fo, new_eo)
     scalepar, parsigma, parshift = get_pars(out_parms)
+    print(parshift[1])
+    velocity = str(parshift[1]*c.to('km/s'))
+    print('shift = '+velocity)
     myscale = model.get_scale(new_wo, scalepar)
     plt.figure()
     plt.plot(new_wo, myscale)
@@ -164,7 +174,7 @@ def main():
     show_err(plt.gca(), new_wo, new_fo, new_eo)
     plt.plot(new_wo, new_fo)
     # plt.plot(new_wo, spec_fit)
-    spec_emcee = model.get_spec(result_emcee.params, new_wo)
+    spec_emcee = model.get_spectrum(result_emcee.params, new_wo)
     plt.plot(new_wo, spec_emcee)
     corner.corner(result_emcee.flatchain, labels=result_emcee.var_names,
                   truths=list(result_emcee.params.valuesdict().values()))
