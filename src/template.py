@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 # import os
+import time
 import math
 import numpy as np
 from astropy.io import fits
@@ -61,8 +62,55 @@ class Model:
         flux_aftscale = flux_rebin * scale
         return flux_aftscale
 
+    def set_lmpar_name(self, parscale, parsigma, parshift):
+        self.lmscale_name = [None] * (max(parscale)+1)
+        for key in parscale:
+            self.lmscale_name[key] = parscale[key]
+        self.lmsigma_name = [None] * (max(parsigma)+1)
+        for key in parsigma:
+            self.lmsigma_name[key] = parsigma[key]
+        self.lmshift_name = [None] * (max(parshift)+1)
+        for key in parshift:
+            self.lmshift_name[key] = parshift[key]
+
+    def get_scale_par(self, pars):
+        parscale = []
+        for parname in self.lmscale_name:
+            if parname is None:
+                parscale.append(0.0)
+            else:
+                parscale.append(pars[parname].value)
+        return parscale
+
+    def get_sigma_par(self, pars):
+        parsigma = []
+        for parname in self.lmsigma_name:
+            if parname is None:
+                parsigma.append(0.0)
+            else:
+                parsigma.append(pars[parname].value)
+        return parsigma
+
+    def get_shift_par(self, pars):
+        parshift = []
+        for parname in self.lmshift_name:
+            if parname is None:
+                parshift.append(0.0)
+            else:
+                parshift.append(pars[parname].value)
+        return parshift
+
     def get_spectrum(self, pars, wave):
-        parscale, parsigma, parshift = get_pars(pars)
+        try:
+            parscale = self.get_scale_par(pars)
+            parsigma = self.get_sigma_par(pars)
+            parshift = self.get_shift_par(pars)
+        except AttributeError as err:
+            print(err)
+            print('May be you forget to execute set_lmpar_name function')
+            parscale, parsigma, parshift = get_pars_name(pars)
+            self.set_lmpar_name(parscale, parsigma, parshift)
+            return self.get_spectrum(pars, wave)
         return self.get_spectrum_pre(wave, parshift, parsigma, parscale)
 
     def residual(self, pars, x, data, eps=None):
@@ -73,35 +121,28 @@ class Model:
             return data-spec
 
 
-def get_pars(pars):
+def get_pars_name(pars):
     """
-    return parscale, parsigma, parshift
+    return dictionary of parscale, parsigma, parshift
     """
     pardata = {'scale':[], 'sigma':[], 'shift':[]}
     for key in pars:
         flag = key[:5]
         order = int(key[5:])
-        value = pars[key].value
-        pardata[flag].append([order, value])
+        pardata[flag].append([order, key])
     dicscale = dict(pardata['scale'])
     dicsigma = dict(pardata['sigma'])
     dicshift = dict(pardata['shift'])
-    scalemax = max(dicscale)+1
-    sigmamax = max(dicsigma)+1
-    shiftmax = max(dicshift)+1
-    parscale = np.zeros(scalemax, dtype=np.float64)
-    parsigma = np.zeros(sigmamax, dtype=np.float64)
-    parshift = np.zeros(shiftmax, dtype=np.float64)
-    for key in dicscale:
-        parscale[key] = dicscale[key]
-    for key in dicsigma:
-        parsigma[key] = dicsigma[key]
-    for key in dicshift:
-        parshift[key] = dicshift[key]
-    return parscale, parsigma, parshift
+    return dicscale, dicsigma, dicshift
 
 
 def set_pars(pars, prefix, order, valuelst=None, minlst=None, maxlst=None):
+    """
+    add par to pars, the parname is named as prefix+str(order)
+    order: list(like [0, 1, 2, 3]) or int (the orderlst will be regarded as
+    [0, 1, 2,..., order]),
+    return a dictionary(keyword:order, value:parname)
+    """
     if isinstance(order, int):
         numlst = range(order+1)
     else:
@@ -112,24 +153,32 @@ def set_pars(pars, prefix, order, valuelst=None, minlst=None, maxlst=None):
         minlst = [-float('inf')] * len(numlst)
     if maxlst is None:
         maxlst = [float('inf')] * len(numlst)
+    keywordlst = []
     for ind, num in enumerate(numlst):
         keyword = prefix+str(num)
         pars.add(keyword, value=valuelst[ind], min=minlst[ind], max=maxlst[ind])
+        keywordlst.append([num, keyword])
+    return dict(keywordlst)
 
 
-def fit(template, wave, flux, err, params=None, show=False, print=False):
+def fit(template, wave, flux, err, params=None, show=False, isprint=False):
     if params is None:
         params = Parameters()
-        # set_pars(params, 'shift', [0, 1], valuelst=[1.1568794774016442, -0.0007594668175056121])
-        set_pars(params, 'shift', [1], valuelst=[-2.5688e-04])
-        set_pars(params, 'sigma', [1], valuelst=[0.00016558594418925043], minlst=[1.0e-8])
-        scalevalst = [4.543402040007523, -0.20454792267985503, -0.2391637452260473,
-                    0.2190777818642178, -0.09965310075298969, -0.1255319879292037]
-        set_pars(params, 'scale', 5, valuelst=scalevalst)
+        # set_pars(params, 'shift', [0, 1], valuelst=[1.16, -0.00076])
+        shiftparname = set_pars(params, 'shift', [1], valuelst=[0.0])
+        sigmaparname = set_pars(params, 'sigma', [1], valuelst=[0.001],
+                                minlst=[1.0e-8])
+        scalevalst = [4.5, -0.2, -0.24, 0.22, -0.1, -0.13]
+        scaleparname = set_pars(params, 'scale', 5, valuelst=scalevalst)
+        template.set_lmpar_name(scaleparname, sigmaparname, shiftparname)
     template.reset_wave_zoom(wave)
+    # start = time.process_time()
+    # print(start)
     out = minimize(template.residual, params, args=(wave, flux, err),
                    method='leastsq')
-    if print:
+    # end = time.process_time()
+    # print("Time used:", end-start)
+    if isprint:
         report_fit(out)
     if show:
         spec_fit = template.get_spectrum(out.params, wave)
@@ -151,7 +200,8 @@ def fit2(template, spec1, spec2, mask=None, params=None, show=False, print=False
     2 sigma pars. the mask window format should be like this
     [[l1, r1], [l2, r2], ...]
     """
-    pass
+    fname = template.filename
+    temp2 = Model(fname)
 
 
 def main():
@@ -171,7 +221,8 @@ def main():
 
     out_parms = result.params
     spec_fit = model.get_spectrum(out_parms, new_wo)
-    scalepar, parsigma, parshift = get_pars(out_parms)
+    scalepar = model.get_scale_par(out_parms)
+    parshift = model.get_shift_par(out_parms)
     print(parshift[1])
     velocity = str(parshift[1]*c.to('km/s'))
     print('shift = '+velocity)
