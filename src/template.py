@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 # import os
-import time
+# import time
 import math
 import numpy as np
-from astropy.io import fits
+# from astropy.io import fits
 from astropy.constants import c
 import matplotlib.pyplot as plt
 from lmfit import minimize, Parameters
@@ -14,7 +14,6 @@ import rebin
 import convol
 import specio
 import func
-
 
 
 class Model:
@@ -48,6 +47,8 @@ class Model:
 
     def convol_spectrum(self, wave, par):
         # tmpwave = self.trans_wave(wave)
+        if par is None:
+            return self.flux
         return np.array(convol.gauss_filter(wave, self.flux, par))
 
     def get_wave(self, parwave):
@@ -125,7 +126,7 @@ def get_pars_name(pars):
     """
     return dictionary of parscale, parsigma, parshift
     """
-    pardata = {'scale':[], 'sigma':[], 'shift':[]}
+    pardata = {'scale': [], 'sigma': [], 'shift': []}
     for key in pars:
         flag = key[:5]
         order = int(key[5:])
@@ -155,9 +156,9 @@ def set_pars(pars, prefix, order, valuelst=None, minlst=None, maxlst=None):
         maxlst = [float('inf')] * len(numlst)
     keywordlst = []
     for ind, num in enumerate(numlst):
-        keyword = prefix+str(num)
-        pars.add(keyword, value=valuelst[ind], min=minlst[ind], max=maxlst[ind])
-        keywordlst.append([num, keyword])
+        key = prefix+str(num)
+        pars.add(key, value=valuelst[ind], min=minlst[ind], max=maxlst[ind])
+        keywordlst.append([num, key])
     return dict(keywordlst)
 
 
@@ -192,35 +193,92 @@ def fit(template, wave, flux, err, params=None, show=False, isprint=False):
     return out
 
 
-def fit2(template, spec1, spec2, mask=None, params=None, show=False, print=False):
+def fit2(template, spec1, spec2, mask=None, params=None, isshow=False,
+         isprint=False):
     """
-    Some spectrum are observed by multichannel instrument. So there are multiple
-    spectral files corresponding to one observation. This function try to fit
-    the two part of the spectrum simultaneously using 2 scale curves, 1 shift,
-    2 sigma pars. the mask window format should be like this
+    Some spectrum are observed by multichannel instrument. So there are
+    multiple spectral files corresponding to one observation. This function try
+    to fit the two part of the spectrum simultaneously using 2 scale curves,
+    1 shift, 2 sigma pars. the mask window format should be like this
     [[l1, r1], [l2, r2], ...]
     """
+    temp1 = template
     fname = template.filename
     temp2 = Model(fname)
+    pars = Parameters()
+    ascale_valst = [3.12, 0.284, -0.023, 0.2, -0.0086, 0.127]
+    ascalepar = set_pars(pars, prefix='a_scale', order=5,
+                         valuelst=ascale_valst)
+    bscale_valst = [3.9, 0.16, -0.019, -0.03, 0.055, -0.02]
+    bscalepar = set_pars(pars, prefix='b_scale', order=5,
+                         valuelst=bscale_valst)
+    asigmapar = set_pars(pars, prefix='a_sigma', order=[1], valuelst=[1.0e-4],
+                         minlst=[1.0e-8])
+    bsigmapar = set_pars(pars, prefix='b_sigma', order=[1], valuelst=[1.0e-4],
+                         minlst=[1.0e-8])
+    shiftpar = set_pars(pars, prefix='shift', order=[1], valuelst=[-2.7713e-04])
+    temp1.set_lmpar_name(ascalepar, asigmapar, shiftpar)
+    temp2.set_lmpar_name(bscalepar, bsigmapar, shiftpar)
+    temp1.reset_wave_zoom(spec1.wave)
+    temp2.reset_wave_zoom(spec2.wave)
+    wave = np.append(spec1.wave, spec2.wave)
+    flux = np.append(spec1.flux_unit, spec2.flux_unit)
+    err = np.append(spec1.err_unit, spec2.err_unit)
+    arg_mask = func.mask(wave, mask)
+
+    def residual(pars, x, data, eps=None):
+        residual1 = temp1.residual(pars, spec1.wave, spec1.flux_unit, eps=spec1.err_unit)
+        residual2 = temp2.residual(pars, spec2.wave, spec2.flux_unit, eps=spec2.err_unit)
+        all_res = np.append(residual1, residual2)
+        all_res[arg_mask] = 1.0
+        return all_res
+    out = minimize(residual, pars, args=(wave, flux, err))
+    report_fit(out)
+    scale1_par = temp1.get_scale_par(out.params)
+    scale1 = temp1.get_scale(spec1.wave, scale1_par)
+    scale2_par = temp2.get_scale_par(out.params)
+    scale2 = temp2.get_scale(spec2.wave, scale2_par)
+    shift_par = temp1.get_shift_par(out.params)
+    temp_new_wave = temp1.get_wave(shift_par)
+    plt.plot(temp_new_wave, temp1.flux)
+    plt.plot(spec1.wave, spec1.flux_unit / scale1)
+    plt.plot(spec2.wave, spec2.flux_unit / scale2)
+    # plt.plot(wave[arg_mask], flux[arg_mask], color='red')
+    plt.show()
+    return out
+
+
+def test():
+    tempname = 'data/templates/F0_+0.5_Dwarf.fits'
+    templat = Model(tempname)
+    spec1 = specio.Spectrum(objname1)
+    spec2 = specio.Spectrum(objname2)
+    maskwindow = [
+        [6270.0, 6320.0],
+        [6860.0, 6970.0],
+        [7150.0, 7340.0]
+    ]
+    fit2(templat, spec1, spec2, mask=maskwindow)
 
 
 def main():
-    tmpname = 'data/F5_-1.0_Dwarf.fits'
+    tmpname = 'data/templates/F0_+0.5_Dwarf.fits'
     model = Model(tmpname)
 
-    ftargetname = 'data/spec-4961-55719-0378.fits'
-    targetname = '/home/zzx/workspace/data/xiamen/P200-Hale_spec/blue/reduce_second/specdir/fawftbblue0070.fits'
-    new_wo, new_fo, new_eo = specio.read_sdss(ftargetname, lw=3660, rw=10170)
+    # ftargetname = 'data/spec-4961-55719-0378.fits'
+    ftargetname = '/home/zzx/workspace/data/xiamen/P200-Hale_spec/blue/reduce_second/specdir/fawftbblue0073.fits'
+    # new_wo, new_fo, new_eo = specio.read_sdss(ftargetname, lw=3660, rw=10170)
+    new_wo, new_fo, new_eo = specio.read_iraf(ftargetname)
     unit = func.get_unit(new_fo)
     new_fo = new_fo / unit
     new_eo = new_eo / unit
     # new_wo, new_fo, new_eo = specio.read_iraf(targetname)
-    result = fit(model, new_wo, new_fo, new_eo, show=True)
+    result = fit(model, new_wo, new_fo, new_eo, show=True, isprint=True)
 
     residual = model.residual
 
     out_parms = result.params
-    spec_fit = model.get_spectrum(out_parms, new_wo)
+    # spec_fit = model.get_spectrum(out_parms, new_wo)
     scalepar = model.get_scale_par(out_parms)
     parshift = model.get_shift_par(out_parms)
     print(parshift[1])
@@ -237,9 +295,8 @@ def main():
     #                  max=np.log(1.0e20))
     result_emcee = minimize(residual, params=emcee_params,
                             args=(new_wo, new_fo, new_eo), method='emcee',
-                            nan_policy='omit', steps=1000)# , workers='mpi4py')
+                            nan_policy='omit', steps=1000)
     report_fit(result_emcee)
-    show_err(plt.gca(), new_wo, new_fo, new_eo)
     plt.plot(new_wo, new_fo)
     # plt.plot(new_wo, spec_fit)
     spec_emcee = model.get_spectrum(result_emcee.params, new_wo)
@@ -250,4 +307,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    test()

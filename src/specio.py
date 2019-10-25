@@ -4,25 +4,27 @@ import func
 
 
 class Spectrum:
-    def __init__(self, wave, flux, err=None, filename=None):
-        self.wave = wave
-        self.flux = flux
-        self.err = err
-        self.unit = func.get_unit(self.flux)
-        self.filename = filename
+    # def __init__(self, wave, flux, err=None, filename=None):
+    #     self.wave = wave
+    #     self.flux = flux
+    #     self.err = err
+    #     self.unit = func.get_unit(self.flux)
+    #     self.filename = filename
 
     def __init__(self, fn):
         self.filename = fn
-        self.wave, self.fux, self.err = read_iraf(fn)
+        self.wave, self.flux, self.err = read_iraf(fn)
         self.unit = func.get_unit(self.flux)
+        self.flux_unit = self.flux / self.unit
+        self.err_unit = self.err / self.unit
 
-    def flux_unit(self):
-        return self.flux / self.unit
+    # def flux_unit(self):
+    #     return self.flux / self.unit
+    #
+    # def err_unit(self):
+    #     return self.err / self.unit
 
-    def err_unit(self):
-        return self.err / self.unit
-
-    def mask(maskwindow):
+    def mask(self, maskwindow):
         """
         return a new spectrum object after masking
         """

@@ -12,7 +12,7 @@ def get_unit(flux):
 def select(wave, flux, err=None, lw=-inf, uw=inf):
     new_wave = np.array(wave)
     new_flux = np.array(flux)
-    arg = np.where((new_wave > lw) & ( new_wave < uw))
+    arg = np.where((new_wave > lw) & (new_wave < uw))
     new_wave = new_wave[arg]
     new_flux = new_flux[arg]
     if err is not None:
@@ -23,10 +23,23 @@ def select(wave, flux, err=None, lw=-inf, uw=inf):
 
 def mask(wave, maskwindow):
     """
-    return arg of wave
+    return the masked arg
     """
+    print(type(wave))
+    print(wave)
     win = maskwindow[0]
-    selected = (wave < win[0]) | (wave > win[1])
+    selected = ((wave > win[0]) & (wave < win[1]))
     for win in maskwindow[1:]:
-        selected = selected & ((wave < win[0]) | (wave > win[1]))
+        selected = (selected | ((wave > win[0]) & (wave < win[1])))
     return np.where(selected)
+
+#
+# def mask(wave, maskwindow):
+#     """
+#     return arg of wave
+#     """
+#     win = maskwindow[0]
+#     selected = (wave < win[0]) | (wave > win[1])
+#     for win in maskwindow[1:]:
+#         selected = selected & ((wave < win[0]) | (wave > win[1]))
+#     return np.where(selected)
