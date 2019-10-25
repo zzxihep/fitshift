@@ -4,7 +4,6 @@
 # import time
 import math
 import numpy as np
-# from astropy.io import fits
 from astropy.constants import c
 import matplotlib.pyplot as plt
 from lmfit import minimize, Parameters
@@ -47,7 +46,7 @@ class Model:
 
     def convol_spectrum(self, wave, par):
         # tmpwave = self.trans_wave(wave)
-        if par is None:
+        if par == [0.0]:
             return self.flux
         return np.array(convol.gauss_filter(wave, self.flux, par))
 
@@ -63,43 +62,25 @@ class Model:
         flux_aftscale = flux_rebin * scale
         return flux_aftscale
 
-    def set_lmpar_name(self, parscale, parsigma, parshift):
-        self.lmscale_name = [None] * (max(parscale)+1)
-        for key in parscale:
-            self.lmscale_name[key] = parscale[key]
-        self.lmsigma_name = [None] * (max(parsigma)+1)
-        for key in parsigma:
-            self.lmsigma_name[key] = parsigma[key]
-        self.lmshift_name = [None] * (max(parshift)+1)
-        for key in parshift:
-            self.lmshift_name[key] = parshift[key]
+    def set_lmpar_name(self, parscale, parsigma=None, parshift=None):
+        self.lmscale_name = parscale
+        self.lmsigma_name = parsigma
+        self.lmshift_name = parshift
 
     def get_scale_par(self, pars):
-        parscale = []
-        for parname in self.lmscale_name:
-            if parname is None:
-                parscale.append(0.0)
-            else:
-                parscale.append(pars[parname].value)
-        return parscale
+        if self.lmscale_name is None:
+            return [0.0]
+        return read_lmpar(pars, self.lmscale_name)
 
     def get_sigma_par(self, pars):
-        parsigma = []
-        for parname in self.lmsigma_name:
-            if parname is None:
-                parsigma.append(0.0)
-            else:
-                parsigma.append(pars[parname].value)
-        return parsigma
+        if self.lmsigma_name is None:
+            return [0.0]
+        return read_lmpar(pars, self.lmsigma_name)
 
     def get_shift_par(self, pars):
-        parshift = []
-        for parname in self.lmshift_name:
-            if parname is None:
-                parshift.append(0.0)
-            else:
-                parshift.append(pars[parname].value)
-        return parshift
+        if self.lmshift_name is None:
+            return [0.0]
+        return read_lmpar(pars, self.lmshift_name)
 
     def get_spectrum(self, pars, wave):
         try:
@@ -171,26 +152,50 @@ def fit(template, wave, flux, err, params=None, show=False, isprint=False):
                                 minlst=[1.0e-8])
         scalevalst = [4.5, -0.2, -0.24, 0.22, -0.1, -0.13]
         scaleparname = set_pars(params, 'scale', 5, valuelst=scalevalst)
-        template.set_lmpar_name(scaleparname, sigmaparname, shiftparname)
+        template.set_lmpar_name(scaleparname, None, shiftparname)
     template.reset_wave_zoom(wave)
     # start = time.process_time()
     # print(start)
-    out = minimize(template.residual, params, args=(wave, flux, err),
-                   method='leastsq')
+
+    def residual(pars, x, data, eps):
+        flux_fit1 = template.get_spectrum(pars, x)
+        arrpar = read_lmpar(pars, sigmaparname)
+        flux_fit2 = np.array(convol.gauss_filter(x, data, arrpar))
+        return (flux_fit1 - flux_fit2)/eps
+
+    # out = minimize(template.residual, params, args=(wave, flux, err),
+    #                method='leastsq')
     # end = time.process_time()
     # print("Time used:", end-start)
+    out = minimize(residual, params, args=(wave, flux, err),
+                   method='leastsq')
     if isprint:
         report_fit(out)
     if show:
-        spec_fit = template.get_spectrum(out.params, wave)
-        lower = flux - err
-        upper = flux + err
+
         plt.figure()
+
+        arrpar = read_lmpar(out.params, sigmaparname)
+        flux_fit2 = np.array(convol.gauss_filter(wave, flux, arrpar))
+        plt.plot(wave, flux_fit2)
+
+        spec_fit = template.get_spectrum(out.params, wave)
+        lower = flux_fit2 - err
+        upper = flux_fit2 + err
+
         plt.fill_between(wave, lower, upper, alpha=0.3, color='grey')
-        plt.plot(wave, flux)
+
         plt.plot(wave, spec_fit)
         plt.show()
     return out
+
+
+def read_lmpar(pars, dic_parnames):
+    arrpar = np.zeros(max(dic_parnames)+1, dtype=np.float64)
+    for key in dic_parnames:
+        parname = dic_parnames[key]
+        arrpar[key] = pars[parname].value
+    return arrpar
 
 
 def fit2(template, spec1, spec2, mask=None, params=None, isshow=False,
@@ -217,8 +222,8 @@ def fit2(template, spec1, spec2, mask=None, params=None, isshow=False,
     bsigmapar = set_pars(pars, prefix='b_sigma', order=[1], valuelst=[1.0e-4],
                          minlst=[1.0e-8])
     shiftpar = set_pars(pars, prefix='shift', order=[1], valuelst=[-2.7713e-04])
-    temp1.set_lmpar_name(ascalepar, asigmapar, shiftpar)
-    temp2.set_lmpar_name(bscalepar, bsigmapar, shiftpar)
+    temp1.set_lmpar_name(ascalepar, None, shiftpar)
+    temp2.set_lmpar_name(bscalepar, None, shiftpar)
     temp1.reset_wave_zoom(spec1.wave)
     temp2.reset_wave_zoom(spec2.wave)
     wave = np.append(spec1.wave, spec2.wave)
@@ -227,8 +232,17 @@ def fit2(template, spec1, spec2, mask=None, params=None, isshow=False,
     arg_mask = func.mask(wave, mask)
 
     def residual(pars, x, data, eps=None):
-        residual1 = temp1.residual(pars, spec1.wave, spec1.flux_unit, eps=spec1.err_unit)
-        residual2 = temp2.residual(pars, spec2.wave, spec2.flux_unit, eps=spec2.err_unit)
+        # print('Flag 1')
+        # print(asigmapar)
+        arrsigma1 = read_lmpar(pars, dic_parnames=asigmapar)
+        arrsigma2 = read_lmpar(pars, dic_parnames=bsigmapar)
+        flux_unit1 = np.array(convol.gauss_filter(spec1.wave, spec1.flux_unit, arrsigma1))
+        flux_unit2 = np.array(convol.gauss_filter(spec2.wave, spec2.flux_unit, arrsigma2))
+        # print(len(spec2.wave))
+        # print(len(flux_unit1))
+        # print(len(spec2.err_unit))
+        residual1 = temp1.residual(pars, spec1.wave, flux_unit1, eps=spec1.err_unit)
+        residual2 = temp2.residual(pars, spec2.wave, flux_unit2, eps=spec2.err_unit)
         all_res = np.append(residual1, residual2)
         all_res[arg_mask] = 1.0
         return all_res
@@ -241,8 +255,12 @@ def fit2(template, spec1, spec2, mask=None, params=None, isshow=False,
     shift_par = temp1.get_shift_par(out.params)
     temp_new_wave = temp1.get_wave(shift_par)
     plt.plot(temp_new_wave, temp1.flux)
-    plt.plot(spec1.wave, spec1.flux_unit / scale1)
-    plt.plot(spec2.wave, spec2.flux_unit / scale2)
+    arrsigma1 = read_lmpar(out.params, dic_parnames=asigmapar)
+    arrsigma2 = read_lmpar(out.params, dic_parnames=bsigmapar)
+    flux_unit1 = convol.gauss_filter(spec1.wave, spec1.flux_unit, arrsigma1)
+    flux_unit2 = convol.gauss_filter(spec2.wave, spec2.flux_unit, arrsigma2)
+    plt.plot(spec1.wave, flux_unit1 / scale1)
+    plt.plot(spec2.wave, flux_unit2 / scale2)
     # plt.plot(wave[arg_mask], flux[arg_mask], color='red')
     plt.show()
     return out
@@ -250,6 +268,8 @@ def fit2(template, spec1, spec2, mask=None, params=None, isshow=False,
 
 def test():
     tempname = 'data/templates/F0_+0.5_Dwarf.fits'
+    objname1 = '/home/zzx/workspace/data/xiamen/P200-Hale_spec/blue/reduce_second/specdir/fawftbblue0073.fits'
+    objname2 = '/home/zzx/workspace/data/xiamen/P200-Hale_spec/red/reduced_second/specdir/fawftbred0073.fits'
     templat = Model(tempname)
     spec1 = specio.Spectrum(objname1)
     spec2 = specio.Spectrum(objname2)
@@ -307,5 +327,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
-    test()
+    main()
+    # test()
