@@ -23,15 +23,11 @@ class Model:
         self.flux = flux
         self.err = err
         self.wshift = -(wave[0]+wave[-1])/2
-        self.wscale = 1.98/(wave[-1]-wave[0])
+        self.wscale = 1.99/(wave[-1]-wave[0])
         typicalflux = np.median(self.flux)
         exponent = math.floor(math.log10(typicalflux))
         self.unit = 10**exponent
         self.flux = self.flux / self.unit
-
-    def reset_wave_zoom(self, wave):
-        self.wshift = -(wave[0]+wave[-1])/2
-        self.wscale = 1.99/(wave[-1]-wave[0])
 
     def trans_wave(self, wave):
         return (wave + self.wshift) * self.wscale
@@ -42,7 +38,14 @@ class Model:
 
     def get_legendre_scale(self, wave, par):
         tmpwave = self.trans_wave(wave)
-        return np.array(convol.legendre_poly(tmpwave, par))
+        if tmpwave[0] > -1 and tmpwave[-1] < 1:
+            return np.array(convol.legendre_poly(tmpwave, par))
+        arg = np.where((tmpwave>-1)&(tmpwave<1))
+        sewave = tmpwave[arg]
+        inscale = np.array(convol.legendre_poly(sewave, par))
+        outscale = np.zeros(len(tmpwave))
+        outscale[arg] = inscale
+        return outscale
 
     def convol_spectrum(self, wave, par):
         # tmpwave = self.trans_wave(wave)
@@ -153,7 +156,6 @@ def fit(template, wave, flux, err, params=None, show=False, isprint=False):
         scalevalst = [4.5, -0.2, -0.24, 0.22, -0.1, -0.13]
         scaleparname = set_pars(params, 'scale', 5, valuelst=scalevalst)
         template.set_lmpar_name(scaleparname, None, shiftparname)
-    template.reset_wave_zoom(wave)
     # start = time.process_time()
     # print(start)
 
@@ -224,8 +226,6 @@ def fit2(template, spec1, spec2, mask=None, params=None, isshow=False,
     shiftpar = set_pars(pars, prefix='shift', order=[1], valuelst=[-2.7713e-04])
     temp1.set_lmpar_name(ascalepar, None, shiftpar)
     temp2.set_lmpar_name(bscalepar, None, shiftpar)
-    temp1.reset_wave_zoom(spec1.wave)
-    temp2.reset_wave_zoom(spec2.wave)
     wave = np.append(spec1.wave, spec2.wave)
     flux = np.append(spec1.flux_unit, spec2.flux_unit)
     err = np.append(spec1.err_unit, spec2.err_unit)
