@@ -29,6 +29,10 @@ class Model:
         self.unit = 10**exponent
         self.flux = self.flux / self.unit
 
+    def reset_zoom(self, wave):
+        self.wshift = -(wave[0]+wave[-1])/2
+        self.wscale = 1.99/(wave[-1]-wave[0])
+
     def trans_wave(self, wave):
         return (wave + self.wshift) * self.wscale
 
@@ -212,6 +216,8 @@ def fit2(template, spec1, spec2, mask=None, params=None, isshow=False,
     temp1 = template
     fname = template.filename
     temp2 = Model(fname)
+    temp1.reset_zoom(spec1.wave)
+    temp2.reset_zoom(spec2.wave)
     pars = Parameters()
     ascale_valst = [3.12, 0.284, -0.023, 0.2, -0.0086, 0.127]
     ascalepar = set_pars(pars, prefix='a_scale', order=5,
@@ -327,5 +333,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-    # test()
+    # main()
+    test()
