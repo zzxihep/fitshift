@@ -2,8 +2,10 @@
 
 # import os
 # import time
+import glob
 import math
 import numpy as np
+from astropy.io import fits
 from astropy.constants import c
 import matplotlib.pyplot as plt
 from lmfit import minimize, Parameters
@@ -16,18 +18,18 @@ import func
 
 
 class Model:
-    def __init__(self, tmpname):
+    def __init__(self, tmpname, hduid=None):
         self.filename = tmpname
-        wave, flux, err = specio.read_template(tmpname)
-        self.wave = wave
-        self.flux = flux
-        self.err = err
-        self.wshift = -(wave[0]+wave[-1])/2
-        self.wscale = 1.99/(wave[-1]-wave[0])
-        typicalflux = np.median(self.flux)
-        exponent = math.floor(math.log10(typicalflux))
-        self.unit = 10**exponent
+        self.spec = specio.Spectrum(tmpname, hduid=hduid)
+        self.wave = self.spec.wave
+        self.flux = self.spec.flux
+        self.err = self.spec.err
+        # wave, flux, err = specio.read_template(tmpname)
+        self.wshift = -(self.wave[0]+self.wave[-1])/2
+        self.wscale = 1.99/(self.wave[-1]-self.wave[0])
+        self.unit = func.get_unit(self.flux)
         self.flux = self.flux / self.unit
+        self.err = self.err / self.err
 
     def reset_zoom(self, wave):
         self.wshift = -(wave[0]+wave[-1])/2
@@ -90,10 +92,12 @@ class Model:
         return read_lmpar(pars, self.lmshift_name)
 
     def get_spectrum(self, pars, wave):
+        print('run get_spectrum')
         try:
             parscale = self.get_scale_par(pars)
             parsigma = self.get_sigma_par(pars)
             parshift = self.get_shift_par(pars)
+            print('scale, sigma, shift: ', parscale, parsigma, parshift)
         except AttributeError as err:
             print(err)
             print('May be you forget to execute set_lmpar_name function')
@@ -287,6 +291,69 @@ def test():
     fit2(templat, spec1, spec2, mask=maskwindow)
 
 
+def fit_lamost():
+    bluelst, redlst = [], []
+    namelst = glob.glob('/home/zzx/workspace/data/stellar_X/*.fits')
+    namelst = ['/home/zzx/workspace/data/stellar_X/med-58409-TD045606N223435B01_sp16-102.fits']
+    for name in namelst:
+        # fig1 = plt.figure()
+        # fig2 = plt.figure()
+        # ax1 = fig1.add_subplot(111)
+        # ax2 = fig2.add_subplot(111)
+        print(name)
+        size = len(fits.open(name))
+        for ind in range(3, size):
+            spec = specio.Spectrum(name, ind)
+            if 'B' in spec.header['EXTNAME']:
+                bluelst.append(spec)
+                mflux = func.median_reject_cos(spec.flux)
+                nw, nf, ne = func.trim_edge(spec.wave, spec.flux, spec.err, pixelout=[10, 10])
+            else:
+                redlst.append(spec)
+                mflux = func.median_reject_cos(spec.flux)
+                nw, nf, ne = func.trim_edge(spec.wave, spec.flux, spec.err, pixelout=[80,40])
+    name = namelst[0]
+    model_blue = Model(name, 3)
+    # model_red = Model(name, 11)
+    params = Parameters()
+        # set_pars(params, 'shift', [0, 1], valuelst=[1.16, -0.00076])
+    shiftparname = set_pars(params, 'shift', [0], valuelst=[3.06])
+    # sigmaparname = set_pars(params, 'sigma', [1], valuelst=[0.001],
+    #                         minlst=[1.0e-8])
+    # scalevalst = [0.99608100, -0.00931768, 0.00319284, 5.5658e-04, -4.4060e-04, 4.7700e-04]
+    scalevalst = [0.99608100, -0.00931768, 0.00319284, 5.5658e-04, -4.4060e-04]
+    scaleparname = set_pars(params, 'scale', 4, valuelst=scalevalst)
+    model_blue.set_lmpar_name(scaleparname, None, shiftparname)
+    # model_red.set_lmpar_name(scaleparname, None, shiftparname)
+    def plot(w, f, e):
+        low = f-e
+        upp = f+e
+        plt.fill_between(w, y1=low, y2=upp, alpha=0.3, color='grey')
+        plt.plot(w, f)
+    for spec in bluelst[1:]:
+        # nw, nf, ne = func.trim_edge(spec.wave, spec.flux_unit, spec.err_unit, pixelout=[150,150])
+        nw, nf, ne = func.select(spec.wave, spec.flux_unit, spec.err_unit, lw=5140, uw=5300)
+        fakeerr = np.ones(len(nw), dtype=np.float64)*0.1
+        ne = fakeerr
+        plot(nw, nf, ne)
+        plt.show()
+        out = minimize(model_blue.residual, params, args=(nw, nf))
+        report_fit(out)
+
+        plt.figure()
+
+        spec_fit = model_blue.get_spectrum(out.params, model_blue.wave)
+        lower = nf - ne
+        upper = nf + ne
+
+        plt.fill_between(nw, lower, upper, alpha=0.3, color='grey')
+
+        plt.plot(nw, nf)
+        plt.plot(model_blue.wave, spec_fit)
+        plt.show()
+
+
+
 def main():
     tmpname = 'data/templates/F0_+0.5_Dwarf.fits'
     model = Model(tmpname)
@@ -334,4 +401,5 @@ def main():
 
 if __name__ == "__main__":
     # main()
-    test()
+    # test()
+    fit_lamost()

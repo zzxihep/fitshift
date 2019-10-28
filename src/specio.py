@@ -11,7 +11,7 @@ def spec_origin(fname):
 
     """
     extension = os.path.splitext(fname)[1]
-    if extension is not '.fits' and extension is not '.fit':
+    if extension != '.fits' and extension != '.fit':
         return 'text'
     head = fits.getheader(fname)
     if 'ORIGIN' in head:
@@ -45,6 +45,7 @@ class Spectrum:
             self.read_sdss(filename)
         elif origin == 'template':
             self.read_template(filename)
+        self.flux = func.median_reject_cos(self.flux)
         self.set_unit()
 
     def read_lamost(self, filename, hduid):
@@ -57,6 +58,10 @@ class Spectrum:
         self.wave = 10**data['LOGLAM'].astype(np.float64)
         self.flux = data['FLUX'].astype(np.float64)
         self.err = 1/data['IVAR'].astype(np.float64)
+        arg = np.argsort(self.wave)
+        self.wave = self.wave[arg]
+        self.flux = self.flux[arg]
+        self.err = self.err[arg]
         self.header = hdu.header
         self.data = hdu.data
 
