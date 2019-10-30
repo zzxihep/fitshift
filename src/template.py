@@ -314,43 +314,49 @@ def fit_lamost():
                 nw, nf, ne = func.trim_edge(spec.wave, spec.flux, spec.err, pixelout=[80,40])
     name = namelst[0]
     model_blue = Model(name, 3)
-    # model_red = Model(name, 11)
+    model_red = Model(name, 11)
     params = Parameters()
         # set_pars(params, 'shift', [0, 1], valuelst=[1.16, -0.00076])
-    shiftparname = set_pars(params, 'shift', [0], valuelst=[3.06])
+    shiftparname = set_pars(params, 'shift', [1], valuelst=[0.0])
     # sigmaparname = set_pars(params, 'sigma', [1], valuelst=[0.001],
     #                         minlst=[1.0e-8])
     # scalevalst = [0.99608100, -0.00931768, 0.00319284, 5.5658e-04, -4.4060e-04, 4.7700e-04]
     scalevalst = [0.99608100, -0.00931768, 0.00319284, 5.5658e-04, -4.4060e-04]
     scaleparname = set_pars(params, 'scale', 4, valuelst=scalevalst)
     model_blue.set_lmpar_name(scaleparname, None, shiftparname)
-    # model_red.set_lmpar_name(scaleparname, None, shiftparname)
+    model_red.set_lmpar_name(scaleparname, None, shiftparname)
     def plot(w, f, e):
         low = f-e
         upp = f+e
         plt.fill_between(w, y1=low, y2=upp, alpha=0.3, color='grey')
         plt.plot(w, f)
-    for spec in bluelst[1:]:
+    shiftlst = []
+    for spec in redlst:
         # nw, nf, ne = func.trim_edge(spec.wave, spec.flux_unit, spec.err_unit, pixelout=[150,150])
-        nw, nf, ne = func.select(spec.wave, spec.flux_unit, spec.err_unit, lw=5140, uw=5300)
+        # nw, nf, ne = func.select(spec.wave, spec.flux_unit, spec.err_unit, lw=4920, uw=5300)
+        nw, nf, ne = func.select(spec.wave, spec.flux_unit, spec.err_unit, lw=6320, uw=6860)
         fakeerr = np.ones(len(nw), dtype=np.float64)*0.1
         ne = fakeerr
         plot(nw, nf, ne)
         plt.show()
-        out = minimize(model_blue.residual, params, args=(nw, nf))
+        # out = minimize(model_blue.residual, params, args=(nw, nf))
+        out = minimize(model_red.residual, params, args=(nw, nf))
+        shiftlst.append(out.params['shift1'].value*c)
         report_fit(out)
 
         plt.figure()
 
-        spec_fit = model_blue.get_spectrum(out.params, model_blue.wave)
+        spec_fit = model_red.get_spectrum(out.params, model_red.wave)
         lower = nf - ne
         upper = nf + ne
 
-        plt.fill_between(nw, lower, upper, alpha=0.3, color='grey')
+        # plt.fill_between(nw, lower, upper, alpha=0.3, color='grey')
 
         plt.plot(nw, nf)
-        plt.plot(model_blue.wave, spec_fit)
+        plt.plot(model_red.wave, spec_fit)
         plt.show()
+    for value in shiftlst:
+        print(value.to('km/s'))
 
 
 
