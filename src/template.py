@@ -17,19 +17,11 @@ import specio
 import func
 
 
-class Model:
+class Model(specio.Spectrum):
     def __init__(self, tmpname, hduid=None):
-        self.filename = tmpname
-        self.spec = specio.Spectrum(tmpname, hduid=hduid)
-        self.wave = self.spec.wave
-        self.flux = self.spec.flux
-        self.err = self.spec.err
-        # wave, flux, err = specio.read_template(tmpname)
+        super(Model, self).__init__(tmpname, hduid)
         self.wshift = -(self.wave[0]+self.wave[-1])/2
         self.wscale = 1.99/(self.wave[-1]-self.wave[0])
-        self.unit = func.get_unit(self.flux)
-        self.flux = self.flux / self.unit
-        self.err = self.err / self.err
 
     def reset_zoom(self, wave):
         self.wshift = -(wave[0]+wave[-1])/2
@@ -53,18 +45,18 @@ class Model:
         outscale[arg] = inscale
         return outscale
 
-    def convol_spectrum(self, wave, par):
+    def convol_spectrum(self, par):
         # tmpwave = self.trans_wave(wave)
         if par == [0.0]:
-            return self.flux
-        return np.array(convol.gauss_filter(wave, self.flux, par))
+            return self.flux_unit
+        return np.array(convol.gauss_filter(self.wave, self.flux_unit, par))
 
     def get_wave(self, parwave):
         return np.array(convol.map_wave(self.wave, parwave))
 
     def get_spectrum_pre(self, wave, arrshift, arrsigma, arrscale):
         new_wave = self.get_wave(arrshift)
-        new_flux = self.convol_spectrum(new_wave, arrsigma)
+        new_flux = self.convol_spectrum(arrsigma)
         # scale = self.get_scale(new_wave, arrscale)
         scale = self.get_legendre_scale(wave, arrscale)
         flux_rebin = np.array(rebin.rebin(new_wave, new_flux, wave))
@@ -308,20 +300,19 @@ def fit_lamost():
             else:
                 redlst.append(spec)
     name = namelst[0]
-    # model_blue = Model(name, 3)
     model_blue = Model(name, 3)
+    model_blue.clean_cosmic_ray()
     model_red = Model(name, 11)
+    model_red.clean_cosmic_ray()
     params = Parameters()
-        # set_pars(params, 'shift', [0, 1], valuelst=[1.16, -0.00076])
     shiftparname = set_pars(params, 'shift', [1], valuelst=[0.0])
-    # sigmaparname = set_pars(params, 'sigma', [1], valuelst=[0.001],
-    #                         minlst=[1.0e-8])
     scalevalst = [0.99608100, -0.00931768, 0.00319284, 5.5658e-04, -4.4060e-04, 0.0]
     bscaleparname = set_pars(params, 'b_scale', 5, valuelst=scalevalst)
-    rscale = [0.5, 0.5, 0.3, 0.5, 0.5, 0.5]
     rscaleparname = set_pars(params, 'r_scale', 5, valuelst=scalevalst)
-    model_blue.set_lmpar_name(bscaleparname, None, shiftparname)
-    model_red.set_lmpar_name(rscaleparname, None, shiftparname)
+    bsimgapar = set_pars(params, 'b_sigma', [1], valuelst=[0.0004], minlst=[0.0])
+    rsigmapar = set_pars(params, 'r_sigma', [1], valuelst=[0.0004], minlst=[0.0])
+    model_blue.set_lmpar_name(bscaleparname, bsimgapar, shiftparname)
+    model_red.set_lmpar_name(rscaleparname, rsigmapar, shiftparname)
     shiftlst, shifterrlst = [], []
     
     def residual(pars, x1, data1, eps1, x2, data2, eps2):
