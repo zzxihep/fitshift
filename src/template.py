@@ -92,12 +92,10 @@ class Model:
         return read_lmpar(pars, self.lmshift_name)
 
     def get_spectrum(self, pars, wave):
-        print('run get_spectrum')
         try:
             parscale = self.get_scale_par(pars)
             parsigma = self.get_sigma_par(pars)
             parshift = self.get_shift_par(pars)
-            print('scale, sigma, shift: ', parscale, parsigma, parshift)
         except AttributeError as err:
             print(err)
             print('May be you forget to execute set_lmpar_name function')
@@ -304,15 +302,13 @@ def fit_lamost():
         size = len(fits.open(name))
         for ind in range(3, size):
             spec = specio.Spectrum(name, ind)
+            spec.clean_cosmic_ray()
             if 'B' in spec.header['EXTNAME']:
                 bluelst.append(spec)
-                mflux = func.median_reject_cos(spec.flux)
-                nw, nf, ne = func.trim_edge(spec.wave, spec.flux, spec.err, pixelout=[10, 10])
             else:
                 redlst.append(spec)
-                mflux = func.median_reject_cos(spec.flux)
-                nw, nf, ne = func.trim_edge(spec.wave, spec.flux, spec.err, pixelout=[80,40])
     name = namelst[0]
+    # model_blue = Model(name, 3)
     model_blue = Model(name, 3)
     model_red = Model(name, 11)
     params = Parameters()
@@ -320,43 +316,53 @@ def fit_lamost():
     shiftparname = set_pars(params, 'shift', [1], valuelst=[0.0])
     # sigmaparname = set_pars(params, 'sigma', [1], valuelst=[0.001],
     #                         minlst=[1.0e-8])
-    # scalevalst = [0.99608100, -0.00931768, 0.00319284, 5.5658e-04, -4.4060e-04, 4.7700e-04]
-    scalevalst = [0.99608100, -0.00931768, 0.00319284, 5.5658e-04, -4.4060e-04]
-    scaleparname = set_pars(params, 'scale', 4, valuelst=scalevalst)
-    model_blue.set_lmpar_name(scaleparname, None, shiftparname)
-    model_red.set_lmpar_name(scaleparname, None, shiftparname)
-    def plot(w, f, e):
-        low = f-e
-        upp = f+e
-        plt.fill_between(w, y1=low, y2=upp, alpha=0.3, color='grey')
-        plt.plot(w, f)
-    shiftlst = []
-    for spec in redlst:
-        # nw, nf, ne = func.trim_edge(spec.wave, spec.flux_unit, spec.err_unit, pixelout=[150,150])
-        # nw, nf, ne = func.select(spec.wave, spec.flux_unit, spec.err_unit, lw=4920, uw=5300)
-        nw, nf, ne = func.select(spec.wave, spec.flux_unit, spec.err_unit, lw=6320, uw=6860)
-        fakeerr = np.ones(len(nw), dtype=np.float64)*0.1
-        ne = fakeerr
-        plot(nw, nf, ne)
-        plt.show()
+    scalevalst = [0.99608100, -0.00931768, 0.00319284, 5.5658e-04, -4.4060e-04, 0.0]
+    bscaleparname = set_pars(params, 'b_scale', 5, valuelst=scalevalst)
+    rscale = [0.5, 0.5, 0.3, 0.5, 0.5, 0.5]
+    rscaleparname = set_pars(params, 'r_scale', 5, valuelst=scalevalst)
+    model_blue.set_lmpar_name(bscaleparname, None, shiftparname)
+    model_red.set_lmpar_name(rscaleparname, None, shiftparname)
+    shiftlst, shifterrlst = [], []
+    
+    def residual(pars, x1, data1, eps1, x2, data2, eps2):
+        res1 = model_blue.residual(pars, x1, data1, eps1)
+        res2 = model_red.residual(pars, x2, data2, eps2)
+        return np.append(res2, res1)
+        return res2
+    
+    for ind in range(len(redlst)):
+        bspec = bluelst[ind]
+        # bspec = redlst[ind]
+        rspec = redlst[ind]
+        bnw, bnf, bne = func.select(bspec.wave, bspec.flux_unit, bspec.err_unit, lw=4920, uw=5300)
+        # bnw, bnf, bne = func.select(bspec.wave, bspec.flux_unit, bspec.err_unit, lw=6320, uw=6860)
+        rnw, rnf, rne = func.select(rspec.wave, rspec.flux_unit, rspec.err_unit, lw=6320, uw=6860)
+        bfakeerr = np.ones(len(bnw), dtype=np.float64)*0.01
+        rfakeerr = np.ones(len(rnw), dtype=np.float64)*0.01
+        bne = bfakeerr
+        rne = rfakeerr
         # out = minimize(model_blue.residual, params, args=(nw, nf))
-        out = minimize(model_red.residual, params, args=(nw, nf))
-        shiftlst.append(out.params['shift1'].value*c)
+        # out = minimize(model_red.residual, params, args=(nw, nf))
+        out = minimize(residual, params, args=(bnw, bnf, bne, rnw, rnf, rne))
         report_fit(out)
+        shiftlst.append(out.params['shift1'].value*c)
+        shifterrlst.append(out.params['shift1'].stderr*c)
 
         plt.figure()
 
-        spec_fit = model_red.get_spectrum(out.params, model_red.wave)
-        lower = nf - ne
-        upper = nf + ne
+        spec_fit_blue = model_blue.get_spectrum(out.params, model_blue.wave)
+        spec_fit_red = model_red.get_spectrum(out.params, model_red.wave)
 
-        # plt.fill_between(nw, lower, upper, alpha=0.3, color='grey')
+        plt.plot(bnw, bnf)
+        plt.plot(model_blue.wave, spec_fit_blue)
 
-        plt.plot(nw, nf)
-        plt.plot(model_red.wave, spec_fit)
+        plt.figure()
+        plt.plot(rnw, rnf)
+        plt.plot(model_red.wave, spec_fit_red)
         plt.show()
-    for value in shiftlst:
-        print(value.to('km/s'))
+
+    for ind, value in enumerate(shiftlst):
+        print(value.to('km/s'), shifterrlst[ind].to('km/s'))
 
 
 

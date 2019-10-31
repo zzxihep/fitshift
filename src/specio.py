@@ -45,6 +45,11 @@ class Spectrum:
             self.read_sdss(filename)
         elif origin == 'template':
             self.read_template(filename)
+        # a temporary keep
+        self.flux = func.median_reject_cos(self.flux)
+        self.set_unit()
+
+    def clean_cosmic_ray(self):
         self.flux = func.median_reject_cos(self.flux)
         self.set_unit()
 
