@@ -47,7 +47,7 @@ class Model(specio.Spectrum):
 
     def convol_spectrum(self, par):
         # tmpwave = self.trans_wave(wave)
-        if par == [0.0]:
+        if len(par) == 1 and par[0] == 0.0:
             return self.flux_unit
         return np.array(convol.gauss_filter(self.wave, self.flux_unit, par))
 
@@ -55,6 +55,7 @@ class Model(specio.Spectrum):
         return np.array(convol.map_wave(self.wave, parwave))
 
     def get_spectrum_pre(self, wave, arrshift, arrsigma, arrscale):
+        arrsigma = np.abs(arrsigma)
         new_wave = self.get_wave(arrshift)
         new_flux = self.convol_spectrum(arrsigma)
         # scale = self.get_scale(new_wave, arrscale)
@@ -309,8 +310,8 @@ def fit_lamost():
     scalevalst = [0.99608100, -0.00931768, 0.00319284, 5.5658e-04, -4.4060e-04, 0.0]
     bscaleparname = set_pars(params, 'b_scale', 5, valuelst=scalevalst)
     rscaleparname = set_pars(params, 'r_scale', 5, valuelst=scalevalst)
-    bsimgapar = set_pars(params, 'b_sigma', [1], valuelst=[0.0004], minlst=[0.0])
-    rsigmapar = set_pars(params, 'r_sigma', [1], valuelst=[0.0004], minlst=[0.0])
+    bsimgapar = set_pars(params, 'b_sigma', [1], valuelst=[0.0004])
+    rsigmapar = set_pars(params, 'r_sigma', [1], valuelst=[0.0004])
     model_blue.set_lmpar_name(bscaleparname, bsimgapar, shiftparname)
     model_red.set_lmpar_name(rscaleparname, rsigmapar, shiftparname)
     shiftlst, shifterrlst = [], []
@@ -337,7 +338,7 @@ def fit_lamost():
         out = minimize(residual, params, args=(bnw, bnf, bne, rnw, rnf, rne))
         report_fit(out)
         shiftlst.append(out.params['shift1'].value*c)
-        shifterrlst.append(out.params['shift1'].stderr*c)
+        # shifterrlst.append(out.params['shift1'].stderr*c)
 
         plt.figure()
 
@@ -353,7 +354,8 @@ def fit_lamost():
         plt.show()
 
     for ind, value in enumerate(shiftlst):
-        print(value.to('km/s'), shifterrlst[ind].to('km/s'))
+        print(value.to('km/s'))
+        # print(value.to('km/s'), shifterrlst[ind].to('km/s'))
 
 
 
