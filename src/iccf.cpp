@@ -1,14 +1,17 @@
-#include <iostream>
 #include <numeric>
+#include <iostream>
+#include "pybind11/pybind11.h"
 #include "xtensor/xarray.hpp"
 #include "xtensor/xio.hpp"
-// #include "xtensor/xview.hpp"
+#define FORCE_IMPORT_ARRAY
 #include "xtensor/xindex_view.hpp"
-// #include "xtensor/xtensor.hpp"
+#include "xtensor-python/pyarray.hpp"
 
 
 #define ARR xt::xarray<double>
 #define CARR const xt::xarray<double>
+#define PYARR xt::pyarray<double>
+
 const double ivc =  1/299792.458;
 
 
@@ -41,36 +44,15 @@ auto cc(CARR& w1, CARR& f1, CARR& w2, CARR& f2, CARR& shift){
   return r_coefs;
 }
 
-auto correlation_coefficient(ARR & w1, CARR & f1, CARR & t2, CARR & f2){
-    auto arg = w1 < 7;
-    auto arg2 = xt::argwhere(w1 < 7 && w1 > 2);
-    xt::xarray<int> inds {1, 3, 5};
-    // auto newline = xt::filter(w1, inds);
-    auto newline = xt::index_view(w1, arg2);
-    auto dif = xt::xarray<double>::from_shape(w1.shape());
-    xt::xarray<double> tmp(w1);
-    tmp[1] = 3.1415;
-    std::adjacent_difference(w1.begin(), w1.end(), dif.begin());
 
-    // auto dif = xt::zeros(w1.shape());
-    // auto dif = xt::diff(t1); 
-    // newline += 100;
-    std::cout << w1 << w1.size() << std::endl;
-    std::cout << tmp << std::endl;
-    std::cout << dif << dif.size() << std::endl;
-    std::cout << arg << std::endl;
-    // std::cout << arg2 << std::endl;
-    std::cout << *w1.rbegin() << std::endl;
-    std::cout << "newline" << newline << std::endl;
-    std::cout << newline * newline << std::endl;
-    double test = xt::sum(newline * newline)();
-    std::cout << test << std::endl;
-    return w1+t2;
-}
-
-
-auto iccf(CARR & t1, CARR & f1, CARR & t2, CARR & f2){
-    return t1+t2;
+auto iccf(PYARR& w1, PYARR& f1, PYARR& w2, PYARR& f2, PYARR& shift){
+  auto mean1 = xt::mean(f1);
+  auto invstd1 = 1/xt::stddev(f1);
+  auto mean2 = xt::mean(f2);
+  auto invstd2 = 1/xt::stddev(f2);
+  auto new_f1 = (f1-mean1)*invstd1;
+  auto new_f2 = (f2-mean2)*invstd2;
+  return cc(w1, new_f1, w2, new_f2, shift);
 }
 
 
@@ -90,9 +72,17 @@ int main(){
     // xt::xarray<double> res = xt::view(arr1, 1) + arr2;
 
     xt::xarray<double> arr{1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9};
-    correlation_coefficient(arr, arr, arr, arr);
+    // correlation_coefficient(arr, arr, arr, arr);
 
     std::cout << res << std::endl;
 
     return 0;
+}
+
+PYBIND11_MODULE(mytest, m)
+{
+    xt::import_numpy();
+    m.doc() = "Test module for xtensor python bindings";
+
+    m.def("iccf", iccf, "Sum the sines of the input values");
 }
