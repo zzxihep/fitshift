@@ -46,12 +46,16 @@ auto cc(CARR& w1, CARR& f1, CARR& w2, CARR& f2, CARR& shift){
 
 
 auto iccf(PYARR& w1, PYARR& f1, PYARR& w2, PYARR& f2, PYARR& shift){
+  std::cout << "norm flux1" << std::endl;
   auto mean1 = xt::mean(f1);
   auto invstd1 = 1/xt::stddev(f1);
+  std::cout << "norm flux2" << std::endl;
   auto mean2 = xt::mean(f2);
   auto invstd2 = 1/xt::stddev(f2);
   auto new_f1 = (f1-mean1)*invstd1;
   auto new_f2 = (f2-mean2)*invstd2;
+  std::cout << "run cc" << std::endl;
+  return xt::xarray<double>({1.0, 2.0, 3.0});
   return cc(w1, new_f1, w2, new_f2, shift);
 }
 
