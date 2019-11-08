@@ -34,7 +34,9 @@ inline double stddev(IT from, IT aflast, double mean){
   return sqrt(val/count);
 }
 
-VEC new_cc(const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC& shift){
+enum TYPE { SPEC, LC}
+
+VEC new_cc(const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC& shift, TYPE type=SPEC){
     VEC new_w1(w1);
     VEC dif(shift.size());
     std::adjacent_difference(shift.begin(), shift.end(), dif.begin());
@@ -54,8 +56,12 @@ VEC new_cc(const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC
     VEC result(shift.size());
     VEC int_f2(new_w1.size());
     for(size_t ind = 0; ind < shift.size(); ++ind){
-        for ( size_t aa = 0; aa < new_w1.size(); ++aa)
-            new_w1[aa] += dif[ind] * w1[aa] * ivc;
+        if ( type == SPEC)
+            for ( size_t aa = 0; aa < new_w1.size(); ++aa)
+                new_w1[aa] += dif[ind] * w1[aa] * ivc;
+        else
+            for ( size_t aa = 0; aa < new_w1.size(); ++aa)
+                new_w1[aa] += dif[ind];
         size_t tmpid = new_w2.size()-1;
         for(size_t bb = new_w1.size()-1; bb != 0; --bb){
             while (new_w2[tmpid] > new_w1[bb]) --tmpid;
@@ -84,7 +90,7 @@ VEC new_cc(const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC
 }
 
 
-auto iccf( const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC& shift){
+auto iccf_pre( const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC& shift, TYPE type=SPEC){
   double mean1 = mean(f1.begin(), f1.end());
   // double mean1 = gsl_stats_mean(f1.begin(), 1, f1.size());
   double invstd1 = 1/stddev(f1.begin(), f1.end(), mean1);
@@ -94,13 +100,23 @@ auto iccf( const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC
   for(auto & val : new_f1) val = (val - mean1) * invstd1;
   VEC new_f2(f2);
   for(auto & val : new_f2) val = (val - mean2) * invstd2;
-  auto result1 = new_cc(w1, new_f1, w2, new_f2, shift);
+  auto result1 = new_cc(w1, new_f1, w2, new_f2, shift, type);
   VEC shift2(shift);
   for(auto & val : shift2) val = -val;
-  auto result2 = new_cc(w2, new_f2, w1, new_f1, shift2);
+  auto result2 = new_cc(w2, new_f2, w1, new_f1, shift2, type);
   for(size_t ind = 0; ind < result1.size(); ++ind)
     result1[ind] = (result1[ind] + result2[ind]) * 0.5;
   return result1;
+}
+
+
+auto iccf_spec( const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC& shift){
+    return iccf_pre(w1, f1, w2, f2, shift, SPEC);
+}
+
+
+auto iccf( const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC& shift){
+    return iccf_pre(w1, f1, w2, f2, shift, LC);
 }
 
 PYBIND11_MODULE(libccf, m)
