@@ -1,1 +1,1 @@
-g++ -std=c++14 iccf.cpp -o mytest.so -I /usr/include/python3.7m/ -I /usr/lib/python3.7/site-packages/numpy/core/include/ -shared -fPIC
+g++ -std=c++14 iccf.cpp -o mytest.so -I /usr/include/python3.7m/ -I /usr/lib/python3.7/site-packages/numpy/core/include/ -shared -fPIC -O2
