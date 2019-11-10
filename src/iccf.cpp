@@ -1,12 +1,13 @@
 #include <cmath>
 #include <numeric>
 #include <random>
-// #include <iostream>
+#include <tuple>
+#include <iostream>
 #include <vector>
 #include <deque>
 #include <algorithm>
 // #include "pybind11/pybind11.h"
-// #include "pybind11/stl.h"
+#include "pybind11/stl.h"
 // #include <gsl/gsl_statistics_double.h>
 
 
@@ -48,13 +49,14 @@ VEC new_cc(const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC
     new_w2.push_back(1.0e50);
     new_f2.push_front(new_f2.front());
     new_f2.push_back(new_f2.back());
-    VEC step_w2(new_w2.size()-1);
-    VEC step_f2(new_f2.size()-1);
+    VEC step_w2(new_w2.size());
+    VEC step_f2(new_f2.size());
     std::adjacent_difference(new_w2.begin(), new_w2.end(), step_w2.begin());
     std::adjacent_difference(new_f2.begin(), new_f2.end(), step_f2.begin());
-    VEC slope(step_f2.size());
-    for(size_t ind = 0; ind < step_f2.size(); ++ind)
-        slope[ind] = step_f2[ind] / step_w2[ind];
+    VEC slope;
+    slope.reserve(step_w2.size()-1);
+    for(size_t ind = 1; ind < step_f2.size(); ++ind)
+        slope.push_back(step_f2[ind] / step_w2[ind]);
     VEC result(shift.size());
     VEC int_f2(new_w1.size());
     for(size_t ind = 0; ind < shift.size(); ++ind){
@@ -105,53 +107,6 @@ double centered_lag(const VEC& shift, const VEC& ccf, double threshold=0.8){
   return lag / denominator;
 }
 
-
-VEC iccf_mc(const VEC& w1, const VEC& f1, const VEC& err1,
-            const VEC& w2, const VEC& f2, const VEC& err2,
-            const VEC& shift, int mc_num, TYPE type=SPEC){
-  std::random_device d;
-  std::default_random_engine e(d());
-  std::uniform_int_distribution<int> u1(0, w1.size()-1);
-  std::uniform_int_distribution<int> u2(0, w2.size()-1);
-  std::vector<std::normal_distribution<double>> random_err1;
-  std::vector<std::normal_distribution<double>> random_err2;
-  for(auto & err : err1)
-    random_err1.push_back(std::normal_distribution<double>(0, err));
-  for(auto & err : err2)
-    random_err2.push_back(std::normal_distribution<double>(0, err));
-  bool * selarr1 = new bool[w1.size()];
-  bool * selarr2 = new bool[w2.size()];
-  VEC sel_w1, sel_f1, sel_w2, sel_f2;
-  sel_w1.reserve(w1.size());
-  sel_f1.reserve(w1.size());
-  sel_w2.reserve(w2.size());
-  sel_f2.reserve(w2.size());
-  for(size_t outloop = 0; outloop < mc_num; ++outloop){
-    sel_w1.clear();
-    sel_f1.clear();
-    sel_w2.clear();
-    sel_f2.clear();
-    for(size_t ind = 0; ind < w1.size(); ++ind) selarr1[ind] = false;
-    for(size_t ind = 0; ind < w2.size(); ++ind) selarr2[ind] = false;
-    for(size_t ind = 0; ind < w1.size(); ++ind) selarr1[u1(e)] = true;
-    for(size_t ind = 0; ind < w2.size(); ++ind) selarr2[u1(e)] = true;
-    for(size_t ind = 0; ind < w1.size(); ++ind)
-      if ( selarr1[ind] == true){
-        sel_w1.push_back(w1[ind]);
-        sel_f1.push_back(f1[ind] + random_err1[ind](e));
-      }
-    for(size_t ind = 0; ind < w2.size(); ++ind)
-      if ( selarr2[ind] == true){
-        sel_w2.push_back(w2[ind]);
-        sel_f2.push_back(f2[ind] + random_err2[ind](e));
-      }
-  }
-  delete [] selarr1;
-  delete [] selarr2;
-  return sel_w1;
-}
-
-
 auto iccf_pre( const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC& shift, TYPE type=SPEC){
   double mean1 = mean(f1.begin(), f1.end());
   // double mean1 = gsl_stats_mean(f1.begin(), 1, f1.size());
@@ -171,20 +126,87 @@ auto iccf_pre( const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const
   return result1;
 }
 
+auto iccf_mc_pre(const VEC& w1, const VEC& f1, const VEC& err1,
+            const VEC& w2, const VEC& f2, const VEC& err2,
+            const VEC& shift, int mc_num, TYPE type=SPEC){
+  std::random_device d;
+  std::default_random_engine e(d());
+  std::uniform_int_distribution<int> u1(0, w1.size()-1);
+  std::uniform_int_distribution<int> u2(0, w2.size()-1);
+  std::vector<std::normal_distribution<double>> random_err1;
+  std::vector<std::normal_distribution<double>> random_err2;
+  for(auto & err : err1)
+    random_err1.push_back(std::normal_distribution<double>(0, err));
+  for(auto & err : err2)
+    random_err2.push_back(std::normal_distribution<double>(0, err));
+  bool * selarr1 = new bool[w1.size()];
+  bool * selarr2 = new bool[w2.size()];
+  VEC sel_w1, sel_f1, sel_w2, sel_f2;
+  sel_w1.reserve(w1.size());
+  sel_f1.reserve(w1.size());
+  sel_w2.reserve(w2.size());
+  sel_f2.reserve(w2.size());
+  VEC peaklst, centerlst;
+  peaklst.reserve(shift.size());
+  centerlst.reserve(shift.size());
+  for(size_t outloop = 0; outloop < mc_num; ++outloop){
+    sel_w1.clear();
+    sel_f1.clear();
+    sel_w2.clear();
+    sel_f2.clear();
+    for(size_t ind = 0; ind < w1.size(); ++ind) selarr1[ind] = false;
+    for(size_t ind = 0; ind < w2.size(); ++ind) selarr2[ind] = false;
+    for(size_t ind = 0; ind < w1.size(); ++ind) selarr1[u1(e)] = true;
+    for(size_t ind = 0; ind < w2.size(); ++ind) selarr2[u2(e)] = true;
+    for(size_t ind = 0; ind < w1.size(); ++ind)
+      if ( selarr1[ind] == true){
+        sel_w1.push_back(w1[ind]);
+        sel_f1.push_back(f1[ind] + random_err1[ind](e));
+      }
+    for(size_t ind = 0; ind < w2.size(); ++ind)
+      if ( selarr2[ind] == true){
+        sel_w2.push_back(w2[ind]);
+        sel_f2.push_back(f2[ind] + random_err2[ind](e));
+      }
+    auto rcoef = iccf_pre(sel_w1, sel_f1, sel_w2, sel_f2, shift, type);
+    auto indpeak = std::max_element(rcoef.begin(), rcoef.end());
+    size_t step = indpeak - rcoef.begin();
+    double peak = shift[step];
+    double centrd = centered_lag(shift, rcoef);
+    peaklst.push_back(peak);
+    centerlst.push_back(centrd);
+  }
+  delete [] selarr1;
+  delete [] selarr2;
+  return std::make_tuple(peaklst, centerlst);
+}
 
 auto iccf_spec( const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC& shift){
     return iccf_pre(w1, f1, w2, f2, shift, SPEC);
 }
 
-
 auto iccf( const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC& shift){
     return iccf_pre(w1, f1, w2, f2, shift, LC);
 }
 
-// PYBIND11_MODULE(libccf, m)
-// {
-//     // xt::import_numpy();
-//     m.doc() = "Test module for xtensor python bindings";
-//
-//     m.def("iccf", iccf, "Sum the sines of the input values");
-// }
+auto iccf_mc_spec(const VEC& w1, const VEC& f1, const VEC& err1,
+            const VEC& w2, const VEC& f2, const VEC& err2,
+            const VEC& shift, int mc_num){
+    return iccf_mc_pre(w1, f1, err1, w2, f2, err2, shift, mc_num, SPEC);
+}
+
+auto iccf_mc(const VEC& w1, const VEC& f1, const VEC& err1,
+            const VEC& w2, const VEC& f2, const VEC& err2,
+            const VEC& shift, int mc_num){
+    return iccf_mc_pre(w1, f1, err1, w2, f2, err2, shift, mc_num, LC);
+}
+
+PYBIND11_MODULE(libccf, m)
+{
+    // xt::import_numpy();
+    m.doc() = "A ICCF package, return ";
+
+    m.def("iccf", iccf, "Sum the sines of the input values");
+    m.def("iccf_mc", iccf_mc, "run FR/RSS to estimate the error bar");
+    m.def("iccf_spec", iccf_spec, "CCF function of two spectra");
+}
