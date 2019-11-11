@@ -1,4 +1,4 @@
-FLAG = -fPIC -std=c++11 -O2
+FLAG = -fPIC -std=c++14 -O2
 PY_CFLAGS  := $(shell python3-config --includes)
 GSL = -lgsl -lgslcblas
 CC = g++
@@ -6,7 +6,7 @@ SHARE = -shared
 
 objects = convol.o convol_wrap.o
 
-default : _convol.so _rebin.so
+default : _convol.so _rebin.so libccf.so
 
 _convol.so : $(objects)
 	$(CC) -o _convol.so $(objects) $(SHARE) $(GSL)
@@ -32,6 +32,9 @@ rebin_wrap.o : rebin_wrap.cxx
 rebin_wrap.cxx : rebin.i
 	swig -python -c++ rebin.i
 
+libccf.so : iccf.cpp
+	$(CC) iccf.cpp -o libccf.so $(FLAG) $(SHARE) $(PY_CFLAGS)
+
 clean :
 	rm _convol.so $(objects) convol_wrap.cxx convol.py \
-	_rebin.so rebin.o rebin_wrap.o rebin_wrap.cxx rebin.py
+	_rebin.so rebin.o rebin_wrap.o rebin_wrap.cxx rebin.py libccf.so
