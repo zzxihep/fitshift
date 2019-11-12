@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# import os
+import os
 # import time
 import glob
 import math
@@ -152,7 +152,7 @@ def fit(template, wave, flux, err, params=None, show=False, isprint=False):
         shiftparname = set_pars(params, 'shift', [1], valuelst=[0.0])
         sigmaparname = set_pars(params, 'sigma', [1], valuelst=[0.001],
                                 minlst=[1.0e-8])
-        scalevalst = [4.5, -0.2, -0.24, 0.22, -0.1, -0.13]
+        scalevalst = [1.0, -1.0, -1.0, 0.22, -0.1, -0.13]
         scaleparname = set_pars(params, 'scale', 5, valuelst=scalevalst)
         template.set_lmpar_name(scaleparname, None, shiftparname)
     # start = time.process_time()
@@ -172,6 +172,11 @@ def fit(template, wave, flux, err, params=None, show=False, isprint=False):
                    method='leastsq')
     if isprint:
         report_fit(out)
+    shift = out.params['shift1'].value * c
+    shifterr = out.params['shift1'].stderr * c
+    print('-'*20+' velocity '+'-'*20)
+    print(shift.to('km/s'))
+    print(shifterr.to('km/s'))
     if show:
 
         plt.figure()
@@ -248,7 +253,7 @@ def fit2(template, spec1, spec2, mask=None, params=None, isshow=False,
         all_res[arg_mask] = 1.0
         return all_res
     out = minimize(residual, pars, args=(wave, flux, err))
-    report_fit(out)
+    # report_fit(out)
     scale1_par = temp1.get_scale_par(out.params)
     scale1 = temp1.get_scale(spec1.wave, scale1_par)
     scale2_par = temp2.get_scale_par(out.params)
@@ -263,6 +268,14 @@ def fit2(template, spec1, spec2, mask=None, params=None, isshow=False,
     plt.plot(spec1.wave, flux_unit1 / scale1)
     plt.plot(spec2.wave, flux_unit2 / scale2)
     # plt.plot(wave[arg_mask], flux[arg_mask], color='red')
+    shift = out.params['shift1'].value * c
+    shifterr = out.params['shift1'].stderr * c
+    bluename = os.path.basename(spec1.filename)
+    redname = os.path.basename(spec2.filename)
+    print('-'*20+' velocity '+'-'*20)
+    print(bluename + '  '+redname)
+    print(shift.to('km/s'))
+    print(shifterr.to('km/s'))
     plt.show()
     return out
 
@@ -338,7 +351,7 @@ def fit_lamost():
         out = minimize(residual, params, args=(bnw, bnf, bne, rnw, rnf, rne))
         report_fit(out)
         shiftlst.append(out.params['shift1'].value*c)
-        # shifterrlst.append(out.params['shift1'].stderr*c)
+        shifterrlst.append(out.params['shift1'].stderr*c)
 
         plt.figure()
 
@@ -354,8 +367,8 @@ def fit_lamost():
         plt.show()
 
     for ind, value in enumerate(shiftlst):
-        print(value.to('km/s'))
-        # print(value.to('km/s'), shifterrlst[ind].to('km/s'))
+        # print(value.to('km/s'))
+        print(value.to('km/s'), shifterrlst[ind].to('km/s'))
 
 
 
