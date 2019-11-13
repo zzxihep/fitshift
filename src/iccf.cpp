@@ -43,20 +43,10 @@ VEC new_cc(const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC
     VEC new_w1(w1);
     VEC dif(shift.size());
     std::adjacent_difference(shift.begin(), shift.end(), dif.begin());
-    std::deque<double> new_w2(w2.begin(), w2.end());
-    std::deque<double> new_f2(f2.begin(), f2.end());
-    new_w2.push_front(-1.0e50);
-    new_w2.push_back(1.0e50);
-    new_f2.push_front(new_f2.front());
-    new_f2.push_back(new_f2.back());
-    VEC step_w2(new_w2.size());
-    VEC step_f2(new_f2.size());
-    std::adjacent_difference(new_w2.begin(), new_w2.end(), step_w2.begin());
-    std::adjacent_difference(new_f2.begin(), new_f2.end(), step_f2.begin());
     VEC slope;
-    slope.reserve(step_w2.size()-1);
-    for(size_t ind = 1; ind < step_f2.size(); ++ind)
-        slope.push_back(step_f2[ind] / step_w2[ind]);
+    slope.reserve(f2.size()-1);
+    for(size_t ind = 1; ind < f2.size(); ++ind)
+        slope.push_back((f2[ind]-f2[ind-1]) / (w2[ind]-w2[ind-1]));
     VEC result(shift.size());
     VEC int_f2(new_w1.size());
     for(size_t ind = 0; ind < shift.size(); ++ind){
@@ -66,24 +56,22 @@ VEC new_cc(const VEC& w1, const VEC& f1, const VEC& w2, const VEC& f2, const VEC
         else
             for ( size_t aa = 0; aa < new_w1.size(); ++aa)
                 new_w1[aa] += dif[ind];
-        size_t tmpid = new_w2.size()-1;
-        for(size_t bb = new_w1.size()-1; bb != 0; --bb){
-            while (new_w2[tmpid] > new_w1[bb]) --tmpid;
-            double deltaw = new_w1[bb] - new_w2[tmpid];
+        int indleft = 0;
+        while(new_w1[indleft] < w2.front()) ++indleft;
+        int indright = new_w1.size();
+        while(new_w1[indright-1] >= w2.back()) --indright;
+        size_t tmpid = w2.size()-1;
+        for(int bb = indright-1; bb >= indleft; --bb){
+            while (w2[tmpid] > new_w1[bb]) --tmpid;
+            double deltaw = new_w1[bb] - w2[tmpid];
             double slop = slope[tmpid];
-            double basef = new_f2[tmpid];
+            double basef = f2[tmpid];
             int_f2[bb] = basef + slop * deltaw;
         }
-        auto itfrom = new_w1.begin();
-        auto itend = new_w1.rbegin();
-        while(*itfrom < w2.front()) ++itfrom;
-        while(*itend > w2.back()) ++itend;
-        auto shift1 = itfrom - new_w1.begin();
-        auto shift2 = itend - new_w1.rbegin();
-        auto arrfrom = f1.begin()+shift1;
-        auto arrend = f1.end()-shift2;
-        auto brrfrom = int_f2.begin()+shift1;
-        auto length = arrend - arrfrom;
+        auto arrfrom = f1.begin()+indleft;
+        auto arrend = f1.begin()+indright;
+        auto brrfrom = int_f2.begin()+indleft;
+        auto length = indright - indleft;
         double r = std::inner_product(arrfrom, arrend, brrfrom, 0.0);
         // double r = 0;
         // while(arrfrom != arrend) r += *arrfrom++ * *brrfrom++;
