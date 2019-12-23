@@ -3,6 +3,7 @@
 #include <utility>
 #include <vector>
 #include <iostream>
+#include <iomanip>
 #include <gsl/gsl_sf_legendre.h>
 #include "convol.h"
 
@@ -49,7 +50,8 @@ ARR map_wave(const ARR & wave, const ARR & map_par){
 }
 
 inline double gaussian(double x, double sigma, double x0){
-    return 1/sqrt(2*M_PI)/sigma * exp(-(x-x0)*(x-x0)/(2*sigma*sigma));
+    // return 1/sqrt(2*M_PI)/sigma * exp(-(x-x0)*(x-x0)/(2*sigma*sigma));
+    return exp(-(x-x0)*(x-x0)/(2*sigma*sigma));
 }
 
 ARR gaussian(const ARR & arrx, double sigma, double x0){
@@ -62,16 +64,18 @@ ARR gaussian(const ARR & arrx, double sigma, double x0){
 }
 
 std::pair<int, int> gaussian2(const ARR & arrx, double sigma, double x0, ARR & result, size_t index_ref, double threshold_ratio){
-    double x_ref = arrx[index_ref];
-    double val_ref = gaussian(x_ref, sigma, x0);
+    // double x_ref = arrx[index_ref];
+    double val_ref = gaussian(x0, sigma, x0);
     double valtmp = val_ref;
     double threshold = val_ref * threshold_ratio;
     int indl = index_ref;
-    while ( indl >= 0 && valtmp > threshold){
+    result[indl] = valtmp;
+    while ( valtmp > threshold) {
+        --indl;
+        if ( indl < 0) {indl = 0; break;}
         valtmp = gaussian(arrx[indl], sigma, x0);
-        result[indl--] = valtmp;
-    }
-    if ( indl < 0) indl = 0;
+        result[indl] = valtmp;
+    };
     int indr = index_ref + 1;
     valtmp = val_ref;
     while (indr<arrx.size() && valtmp>threshold){
@@ -98,6 +102,18 @@ ARR get_edge(const ARR & wave){
 // different wave, the sigma is defined as sigma = par0 + par1*wave + par2*wave^2 ...
 // return the fluxes after smooth
 ARR gauss_filter(const ARR & wave, const ARR & flux, const ARR & arrpar){
+    // std::cout << "gaussian paramater = ";
+    // for(auto par : arrpar){
+    //     std::cout << par << "  ";
+    // }
+    // std::cout << std::endl;
+    // std::cout << "size = " << wave.size() << std::endl;
+    // std::cout << "wave = ";
+    // std::cout << std::setprecision(9) << wave[0] << "  " << wave[1] << "  " << wave[2] << " ... " << wave.back() << std::endl;
+    // std::cout << "flux = ";
+    // std::cout << std::setprecision(9) << flux[0] << "  " << flux[1] << "  " << flux[2] << " ... " << flux.back() << std::endl;
+    // std::cout << "wave diff = ";
+    // std::cout << std::setprecision(9) << wave[1]-wave[0] << "  " << wave[2]-wave[1] << "  " << wave[3]-wave[2] << std::endl;
     ARR arrsigma = poly(wave, arrpar);
     ARR gauss_profile(wave.size());
     ARR new_flux(wave.size());
@@ -108,17 +124,19 @@ ARR gauss_filter(const ARR & wave, const ARR & flux, const ARR & arrpar){
         arrwidth.push_back(arredge[d+1]-arredge[d]);
     for( size_t ind = 0; ind < wave.size(); ++ind){
         double sigma = arrsigma[ind];
-        double w = wave[ind];
-        double f = flux[ind];
-        auto indlr = gaussian2(wave, sigma, w, gauss_profile, ind, 1.0e-5);
-        size_t indl = indlr.first;
-        size_t indr = indlr.second;
+        double w0 = wave[ind];
+        double mf = flux[ind] * arrwidth[ind];
+        auto indlr = gaussian2(wave, sigma, w0, gauss_profile, ind, 1.0e-5);
+        const int indl = indlr.first;
+        const int indr = indlr.second;
         double area = 0;
         for ( size_t j =indl; j < indr; ++j)
             area += arrwidth[j] * gauss_profile[j];
-        area = 1/area;
+        double inv_area = 1.0/area;
+        // std::cout << "area = " << area << "  ";
+        // std::cout << "left, right = " << indl << "  " << indr << "  " << indr - indl << std::endl;
         for ( size_t j = indl; j < indr; ++j){
-            new_flux[j] += f * (gauss_profile[j] * area) * arrwidth[j];
+            new_flux[j] += mf * (gauss_profile[j] * inv_area);
             gauss_profile[j] = 0;
         }
     }

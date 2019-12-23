@@ -2,6 +2,7 @@ from lmfit import Parameters, minimize
 from lmfit import report_fit
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.ndimage.filters import median_filter
 import convol
 import template
 import specio
@@ -21,6 +22,13 @@ def get_scale(wave, pars):
     """
     realpar = [t.value for t in pars.values()]
     return np.array(convol.legendre_poly(wave, realpar))
+
+
+def continuum2(wave, flux, err=None):
+    newflux = median_filter(flux, 60)
+    plt.plot(wave, flux)
+    plt.plot(wave, newflux)
+    plt.show()
 
 
 def continuum(wave, flux, err=None):
@@ -79,6 +87,7 @@ def test():
     length = wave[-1] - wave[0]
     center = (wave[0] + wave[-1])/2
     new_x = (wave-center)/length*1.99
+    continuum2(new_x, flux, err)
     result = continuum(new_x, flux, err)
     scale = get_scale(new_x, result.params)
     cont = flux / scale

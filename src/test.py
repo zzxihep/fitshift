@@ -22,7 +22,7 @@ def test_rebin_err(wave, flux, err):
     new_wave = np.linspace(begin, end, length/5)
     # new_wave = wave
     new_flux = np.array(rebin.rebin(wave, flux, new_wave))
-    print(new_wave)
+    # print(new_wave)
     print(len(new_wave))
     print(len(new_flux))
     new_err = np.array(rebin.rebin_err(wave, err, new_wave))
@@ -71,6 +71,7 @@ def test_conv(wave, flux):
     stestflux = convol.gauss_filter(nwave, testflux, sigmapar)
     plt.plot(nwave, stestflux)
     stestflux2 = convol.gauss_filter(wave, testflux, sigmapar)
+    print('Gaussian filter')
     plt.plot(wave, stestflux2)
 
     test_map_wave()
