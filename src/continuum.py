@@ -32,8 +32,11 @@ def continuum2(wave, flux, err=None):
 
 
 def continuum(wave, flux, err=None):
+    print(len(wave))
+    print(len(flux))
+    print(wave)
     pars = Parameters()
-    template.set_pars(pars, 'scale', 12, [0.0]*13)
+    template.set_pars(pars, 'scale', 6, [0.0]*7)
     result = minimize(residual, pars, args=(wave, flux, err))
     scale = get_scale(wave, result.params)
     tmpuniform = flux / scale
@@ -41,7 +44,10 @@ def continuum(wave, flux, err=None):
     arg = np.where(tmpuniform > 1-3*std)
     new_wave = wave[arg]
     new_flux = flux[arg]
-    new_err = err[arg]
+    if err is not None:
+        new_err = err[arg]
+    else:
+        new_err = None
     size = len(wave)
     # plt.plot(wave, flux)
     # plt.plot(wave, scale)
@@ -60,7 +66,8 @@ def continuum(wave, flux, err=None):
         size = len(new_wave)
         new_wave = new_wave[arg]
         new_flux = new_flux[arg]
-        new_err = new_err[arg]
+        if err is not None:
+            new_err = new_err[arg]
         # plt.plot(wave, flux)
         # plt.plot(tmpwave, scale)
         # plt.figure()
@@ -70,10 +77,19 @@ def continuum(wave, flux, err=None):
     return result
 
 
-def uniform(wave, flux, err=None):
-    result = continuum(wave, flux, err)
-    scale = get_scale(wave, result.params)
+def uniform(wave, flux, err=None, show=False):
+    length = wave[-1] - wave[0]
+    center = (wave[0] + wave[-1])/2
+    new_x = (wave-center)/length*1.99
+    result = continuum(new_x, flux, err)
+    scale = get_scale(new_x, result.params)
     new_flux = flux / scale
+    if show is True:
+        plt.plot(wave, flux)
+        plt.plot(wave, scale)
+        plt.figure()
+        plt.plot(wave, new_flux)
+        plt.show()
     if err is not None:
         return new_flux, err / scale
     return new_flux

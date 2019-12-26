@@ -1,10 +1,11 @@
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 from astropy.io import fits
 import func
 
 
-def spec_origin(fname):
+def spec_creator(fname):
     """
     get the origin of the spectrum, the origin include
     ['text', 'iraf', 'lamost', 'sdss', 'template', 'unknow']
@@ -26,6 +27,8 @@ def spec_origin(fname):
     fit = fits.open(fname)
     if len(fit) > 1 and 'PropErr' in fit[1].header.values():
         return 'template'
+    if 'CREATOR' in head:
+        return head['CREATOR'].replace(' ', '')
     fit.close()
     return 'unknow'
 
@@ -34,7 +37,7 @@ class Spectrum:
     def __init__(self, filename, hduid=None):
         self.filename = filename
         self.hduid = hduid
-        origin = spec_origin(filename)
+        origin = spec_creator(filename)
         if origin == 'lamost':
             self.read_lamost(filename, hduid)
         elif origin == 'iraf':
@@ -45,16 +48,27 @@ class Spectrum:
             self.read_sdss(filename)
         elif origin == 'template':
             self.read_template(filename)
+        elif origin == 'Pleinpot2':
+            self.read_pleinpot2(filename)
         self.set_unit()
 
     def clean_cosmic_ray(self):
         self.flux = func.median_reject_cos(self.flux)
         self.set_unit()
 
+    def read_pleinpot2(self, fname):
+        fit = fits.open('lte047.fits')
+        tdata = fit[1].data
+        self.wave = tdata['WAVELENGTH'].astype(np.float64)
+        self.flux = tdata['FLUX'].astype(np.float64)
+        self.err = None
+        self.header = fit[1].header
+        self.data = fit[1].data
+
     def read_lamost(self, filename, hduid):
         fit = fits.open(filename)
         _hduid = hduid
-        if hduid == None:
+        if hduid is None:
             _hduid = 1
         hdu = fit[_hduid]
         data = hdu.data
@@ -124,11 +138,42 @@ class Spectrum:
         """
         return a new spectrum object after masking
         """
-        arg = func.mask(self.wave)
+        arg = func.mask(self.wave, maskwindow)
         new_wave = self.wave[arg]
         new_flux = self.flux[arg]
         new_err = self.err[arg]
         return Spectrum(new_wave, new_flux, new_err, self.filename)
+
+    def select(self, selectwindow):
+        """
+        return a new spectrum object the wavelength included in the maskwindow.
+        """
+        win = selectwindow[0]
+        selected = ((self.wave > win[0]) & (self.wave < win[1]))
+        for win in selectwindow[1:]:
+            selected = (selected | ((self.wave > win[0]) &
+                                    (self.wave < win[1])))
+        arg = np.where(selected)
+        new_wave = self.wave[arg]
+        new_flux = self.flux[arg]
+        if self.err is not None:
+            new_err = self.err[arg]
+        else:
+            new_err = None
+        self.wave = new_wave
+        self.flux = new_flux
+        self.err = new_err
+        self.set_unit()
+        newspec = Spectrum(self.filename)
+        newspec.wave = new_wave
+        newspec.flux = new_flux
+        newspec.err = new_err
+        newspec.set_unit()
+        return newspec
+
+    def show(self):
+        plt.plot(self.wave, self.flux)
+        plt.show()
 
 
 def read_sdss(fname, lw=-float('inf'), rw=float('inf')):

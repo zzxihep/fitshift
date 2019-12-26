@@ -60,7 +60,12 @@ class Model(specio.Spectrum):
         new_flux = self.convol_spectrum(arrsigma)
         # scale = self.get_scale(new_wave, arrscale)
         scale = self.get_legendre_scale(wave, arrscale)
+        print('flag1')
+        print(len(new_wave))
+        print(len(new_flux))
+        print(len(wave))
         flux_rebin = np.array(rebin.rebin(new_wave, new_flux, wave))
+        print('flag2')
         flux_aftscale = flux_rebin * scale
         return flux_aftscale
 
@@ -145,23 +150,39 @@ def set_pars(pars, prefix, order, valuelst=None, minlst=None, maxlst=None):
     return dict(keywordlst)
 
 
-def fit(template, wave, flux, err, params=None, show=False, isprint=False):
+def fit(template, wave, flux, err, params=None, show=False, isprint=False,
+        mask=None):
+    print('run fit')
     if params is None:
         params = Parameters()
         # set_pars(params, 'shift', [0, 1], valuelst=[1.16, -0.00076])
         shiftparname = set_pars(params, 'shift', [1], valuelst=[0.0])
-        sigmaparname = set_pars(params, 'sigma', [1], valuelst=[0.001],
-                                minlst=[1.0e-8])
+        sigmaparname = set_pars(params, 'sigma', [1], valuelst=[0.00001],
+                                minlst=[1.0e-8], maxlst=[5.0e-4])
         scalevalst = [1.0, -1.0, -1.0, 0.22, -0.1, -0.13]
         scaleparname = set_pars(params, 'scale', 5, valuelst=scalevalst)
-        template.set_lmpar_name(scaleparname, None, shiftparname)
+        template.set_lmpar_name(scaleparname, sigmaparname, shiftparname)
     # start = time.process_time()
     # print(start)
+    if mask is not None:
+        argsel = func.mask(wave, mask)
+    # print('len wave, flux, err')
+    # print(len(wave))
+    # print(len(flux))
+    # print(len(err))
 
     def residual(pars, x, data, eps):
+        # print('flag')
+        # print(pars)
+        # print(x)
+        # print('length of template is ')
+        # print(len(template.wave))
         flux_fit1 = template.get_spectrum(pars, x)
-        arrpar = read_lmpar(pars, sigmaparname)
-        flux_fit2 = np.array(convol.gauss_filter(x, data, arrpar))
+        # print(len(flux_fit1))
+        # arrpar = read_lmpar(pars, sigmaparname)
+        # flux_fit2 = np.array(convol.gauss_filter(x, data, arrpar))
+        if mask is not None:
+            return ((flux_fit1 - data)/eps)[argsel]
         return (flux_fit1 - flux_fit2)/eps
 
     # out = minimize(template.residual, params, args=(wave, flux, err),
@@ -172,24 +193,25 @@ def fit(template, wave, flux, err, params=None, show=False, isprint=False):
                    method='leastsq')
     if isprint:
         report_fit(out)
-    shift = out.params['shift1'].value * c
-    shifterr = out.params['shift1'].stderr * c
-    print('-'*20+' velocity '+'-'*20)
-    print(shift.to('km/s'))
-    print(shifterr.to('km/s'))
+    # shift = out.params['shift1'].value * c
+    # shifterr = out.params['shift1'].stderr * c
+    # print('-'*20+' velocity '+'-'*20)
+    # print(shift.to('km/s'))
+    # print(shifterr.to('km/s'))
     if show:
 
         plt.figure()
 
         arrpar = read_lmpar(out.params, sigmaparname)
-        flux_fit2 = np.array(convol.gauss_filter(wave, flux, arrpar))
-        plt.plot(wave, flux_fit2)
+        print('gaussian filter par = ')
+        print(arrpar)
+        plt.plot(wave, flux)
 
         spec_fit = template.get_spectrum(out.params, wave)
-        lower = flux_fit2 - err
-        upper = flux_fit2 + err
-
-        plt.fill_between(wave, lower, upper, alpha=0.3, color='grey')
+        # lower = spec_fit - err
+        # upper = spec_fit + err
+        #
+        # plt.fill_between(wave, lower, upper, alpha=0.3, color='grey')
 
         plt.plot(wave, spec_fit)
         plt.show()
@@ -328,20 +350,25 @@ def fit_lamost():
     model_blue.set_lmpar_name(bscaleparname, bsimgapar, shiftparname)
     model_red.set_lmpar_name(rscaleparname, rsigmapar, shiftparname)
     shiftlst, shifterrlst = [], []
-    
+
     def residual(pars, x1, data1, eps1, x2, data2, eps2):
         res1 = model_blue.residual(pars, x1, data1, eps1)
         res2 = model_red.residual(pars, x2, data2, eps2)
         return np.append(res2, res1)
         return res2
-    
+
     for ind in range(len(redlst)):
         bspec = bluelst[ind]
         # bspec = redlst[ind]
         rspec = redlst[ind]
-        bnw, bnf, bne = func.select(bspec.wave, bspec.flux_unit, bspec.err_unit, lw=4920, uw=5300)
-        # bnw, bnf, bne = func.select(bspec.wave, bspec.flux_unit, bspec.err_unit, lw=6320, uw=6860)
-        rnw, rnf, rne = func.select(rspec.wave, rspec.flux_unit, rspec.err_unit, lw=6320, uw=6860)
+        arg1 = func.select(bspec.wave, [[4920, 5300]])
+        bnw = bspec.wave[arg1]
+        bnf = bspec.flux[arg1]
+        bne = bspec.err[arg1]
+        arg2 = func.select(rspec.wave, [[6320, 6860]])
+        rnw = rspec.wave[arg2]
+        rnf = rspec.flux[arg2]
+        rne = rspec.err[arg2]
         bfakeerr = np.ones(len(bnw), dtype=np.float64)*0.01
         rfakeerr = np.ones(len(rnw), dtype=np.float64)*0.01
         bne = bfakeerr
