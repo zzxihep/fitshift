@@ -85,6 +85,7 @@ std::pair<int, int> gaussian2(const ARR & arrx, double sigma, double x0, ARR & r
     return std::make_pair(indl, indr);
 }
 
+
 ARR get_edge(const ARR & wave){
     ARR interval(wave.size());
     std::adjacent_difference(wave.begin(), wave.end(), interval.begin());
@@ -98,22 +99,11 @@ ARR get_edge(const ARR & wave){
     return edge_out;
 }
 
+
 // a gaussian filter for spectrum, the sigma of gaussians can be different in
 // different wave, the sigma is defined as sigma = par0 + par1*wave + par2*wave^2 ...
 // return the fluxes after smooth
 ARR gauss_filter(const ARR & wave, const ARR & flux, const ARR & arrpar){
-    // std::cout << "gaussian paramater = ";
-    // for(auto par : arrpar){
-    //     std::cout << par << "  ";
-    // }
-    // std::cout << std::endl;
-    // std::cout << "size = " << wave.size() << std::endl;
-    // std::cout << "wave = ";
-    // std::cout << std::setprecision(9) << wave[0] << "  " << wave[1] << "  " << wave[2] << " ... " << wave.back() << std::endl;
-    // std::cout << "flux = ";
-    // std::cout << std::setprecision(9) << flux[0] << "  " << flux[1] << "  " << flux[2] << " ... " << flux.back() << std::endl;
-    // std::cout << "wave diff = ";
-    // std::cout << std::setprecision(9) << wave[1]-wave[0] << "  " << wave[2]-wave[1] << "  " << wave[3]-wave[2] << std::endl;
     ARR arrsigma = poly(wave, arrpar);
     ARR gauss_profile(wave.size());
     ARR new_flux(wave.size());
@@ -133,8 +123,6 @@ ARR gauss_filter(const ARR & wave, const ARR & flux, const ARR & arrpar){
         for ( size_t j =indl; j < indr; ++j)
             area += arrwidth[j] * gauss_profile[j];
         double inv_area = 1.0/area;
-        // std::cout << "area = " << area << "  ";
-        // std::cout << "left, right = " << indl << "  " << indr << "  " << indr - indl << std::endl;
         for ( size_t j = indl; j < indr; ++j){
             new_flux[j] += mf * (gauss_profile[j] * inv_area);
             gauss_profile[j] = 0;
@@ -142,6 +130,7 @@ ARR gauss_filter(const ARR & wave, const ARR & flux, const ARR & arrpar){
     }
     return new_flux;
 }
+
 
 int main(){
     std::cout << gaussian(0, 1, 0) << std::endl;

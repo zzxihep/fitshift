@@ -157,11 +157,12 @@ def fit(template, wave, flux, err, params=None, show=False, isprint=False,
         params = Parameters()
         # set_pars(params, 'shift', [0, 1], valuelst=[1.16, -0.00076])
         shiftparname = set_pars(params, 'shift', [1], valuelst=[0.0])
-        sigmaparname = set_pars(params, 'sigma', [1], valuelst=[0.00001],
-                                minlst=[1.0e-8], maxlst=[5.0e-4])
+        # sigmaparname = set_pars(params, 'sigma', [1], valuelst=[0.00001],
+        #                         minlst=[1.0e-8], maxlst=[5.0e-4])
         scalevalst = [1.0, -1.0, -1.0, 0.22, -0.1, -0.13]
         scaleparname = set_pars(params, 'scale', 5, valuelst=scalevalst)
-        template.set_lmpar_name(scaleparname, sigmaparname, shiftparname)
+        # template.set_lmpar_name(scaleparname, sigmaparname, shiftparname)
+        template.set_lmpar_name(scaleparname, None, shiftparname)
     # start = time.process_time()
     # print(start)
     if mask is not None:
@@ -202,9 +203,9 @@ def fit(template, wave, flux, err, params=None, show=False, isprint=False,
 
         plt.figure()
 
-        arrpar = read_lmpar(out.params, sigmaparname)
-        print('gaussian filter par = ')
-        print(arrpar)
+        # arrpar = read_lmpar(out.params, sigmaparname)
+        # print('gaussian filter par = ')
+        # print(arrpar)
         plt.plot(wave, flux)
 
         spec_fit = template.get_spectrum(out.params, wave)
