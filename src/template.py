@@ -60,12 +60,12 @@ class Model(specio.Spectrum):
         new_flux = self.convol_spectrum(arrsigma)
         # scale = self.get_scale(new_wave, arrscale)
         scale = self.get_legendre_scale(wave, arrscale)
-        print('flag1')
-        print(len(new_wave))
-        print(len(new_flux))
-        print(len(wave))
+        # print('flag1')
+        # print(len(new_wave))
+        # print(len(new_flux))
+        # print(len(wave))
         flux_rebin = np.array(rebin.rebin(new_wave, new_flux, wave))
-        print('flag2')
+        # print('flag2')
         flux_aftscale = flux_rebin * scale
         return flux_aftscale
 
