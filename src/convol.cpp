@@ -105,18 +105,44 @@ ARR get_edge(const ARR & wave){
 // return the fluxes after smooth
 ARR gauss_filter(const ARR & wave, const ARR & flux, const ARR & arrpar){
     ARR arrsigma = poly(wave, arrpar);
-    ARR gauss_profile(wave.size());
-    ARR new_flux(wave.size());
+    // adjust for boundry condition
+    auto left_sigma = arrsigma.front();
+    auto right_sigma = arrsigma.back();
+    double delta_w1 = *(wave.begin()+1) - *(wave.begin());
+    double delta_w2 = *(wave.rbegin()) - *(wave.rbegin()+1);
+    int left_margin = (int)(5*left_sigma/delta_w1);
+    int right_margin = (int)(5*right_sigma/delta_w2);
+    ARR newave, newflux;
+    double wtmp = wave.front() - left_margin * delta_w1;
+    for(int i = 0; i < left_margin; ++i){
+        newave.push_back(wtmp);
+        newflux.push_back(flux.front());
+        wtmp += delta_w1;
+    }
+    for (int i = 0; i < wave.size(); ++i){
+        newave.push_back(wave[i]);
+        newflux.push_back(flux[i]);
+    }
+    wtmp = wave.back();
+    for (int i = 0; i < right_margin; ++i){
+        wtmp += delta_w2;
+        newave.push_back(wtmp);
+        newflux.push_back(flux.back());
+    }
+
+    arrsigma = poly(newave, arrpar);
+    ARR gauss_profile(newave.size());
+    ARR new_flux(newave.size());
     for( auto & val : new_flux) val = 0;
-    ARR arredge = get_edge(wave);
+    ARR arredge = get_edge(newave);
     ARR arrwidth;
     for( size_t d = 0; d < arredge.size()-1; ++d)
         arrwidth.push_back(arredge[d+1]-arredge[d]);
-    for( size_t ind = 0; ind < wave.size(); ++ind){
+    for( size_t ind = 0; ind < newave.size(); ++ind){
         double sigma = arrsigma[ind];
-        double w0 = wave[ind];
-        double mf = flux[ind] * arrwidth[ind];
-        auto indlr = gaussian2(wave, sigma, w0, gauss_profile, ind, 1.0e-5);
+        double w0 = newave[ind];
+        double mf = newflux[ind] * arrwidth[ind];
+        auto indlr = gaussian2(newave, sigma, w0, gauss_profile, ind, 1.0e-5);
         const int indl = indlr.first;
         const int indr = indlr.second;
         double area = 0;
@@ -128,7 +154,9 @@ ARR gauss_filter(const ARR & wave, const ARR & flux, const ARR & arrpar){
             gauss_profile[j] = 0;
         }
     }
-    return new_flux;
+    ARR outflux;
+    for (int i = left_margin; i < left_margin + wave.size(); ++i) outflux.push_back(new_flux[i]);
+    return outflux;
 }
 
 
